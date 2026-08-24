@@ -4,6 +4,10 @@ Type: research
 Status: resolved
 Blocked by: none
 
+## Comments
+
+Resolved by research subagent during charting (2026-08-24). Answer below.
+
 ## Question
 
 What does LinkedIn's Voyager (internal REST) API actually allow, per capability?
@@ -24,4 +28,6 @@ Deliverable: a findings file with each claim cited to its source, linked from th
 
 ## Answer
 
-Resolved during charting by the research subagent. Findings: `research/01-voyager-api-constraints.md` (see `.scratch/personal-mcp/research/`).
+**Context pointer:** findings at `.scratch/personal-mcp/research/01-voyager-api-constraints.md` (branch `research/01-voyager-api-constraints`, merged to `main`).
+
+Gist: LinkedIn exposes two private APIs — Voyager (reads + browserless writes: post-create, like, messaging, connect, follow-company) and SDUI (profile edits across 16 sections incl. skills add/delete, top-skills via About form, comments, unlike, delete-post, endorse, remove-connection). Many SDUI writes replayable browserless via a `states[]` payload; some need a browser. Messages have a documented idempotency key (`originToken`); posts do not → never-double-post needs local dedupe + verify-after-post via `voyagerFeedDashProfileUpdates` read-back. Ghost entries likely stem from Voyager `DELETE` returning constant 400 → deletes must route through SDUI. Services page is the one undocumented gap. GraphQL query-id hashes rotate on deploys → endpoints break without notice, which is the core argument for a data-driven, self-healing endpoint/selector registry. Authwall (~2–3 browser writes/sign-in) and 60/hr quota remain empirical from our own sessions. New serious competitor surfaced: **mguttmann/linkedin-internal-api** (browserless-first, 26 tools, honest endpoint docs) — not in the handoff's list.
