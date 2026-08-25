@@ -18,6 +18,7 @@ Reaching the end of this map = the way to that destination is clear and no decis
 ## Decisions so far
 
 - [Voyager API constraints](issues/01-research-voyager-api-constraints.md) — LinkedIn runs two private APIs: Voyager (reads + browserless writes: post-create, like, messaging, connect) and SDUI (profile edits incl. skills, comments, deletes; many replayable browserless via `states[]`). Messages have an idempotency key (`originToken`); posts don't → verify-after-post + local dedupe. Voyager DELETE 400s → deletes via SDUI. GraphQL hashes rotate on deploys → data-driven self-healing registry is mandatory. Authwall/quota stay empirical (ours). Full findings: `research/01-voyager-api-constraints.md`.
+- [Architecture design](issues/02-grilling-architecture-design.md) — browserless-first (HTTP for reads + most writes; browser only for sign-in/fallback); routing table adopted from research (Voyager / SDUI / browser-fallback); selector+endpoint registry as versioned JSON + hot-reloaded runtime overlay with failure-artifact suggestions; session/pacing engine with per-sign-in write budget (2–3 default), health probes, pause→re-auth→resume; posting = Voyager GQL + verify-after-post + persisted dedupe key + no auto-retry on timeout + write gate by default. ADRs: 0001, 0002.
 
 ## Not yet specified
 
