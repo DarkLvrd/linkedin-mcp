@@ -224,5 +224,61 @@ export function createAgenticLinkedinServer(
     (args) => writeToolResult(options.readOnly, () => transport.deleteGhostEntry({ section: args.section, urn: args.urn })),
   );
 
+  // Posting (ticket 13): verify-after-post, dedupe, never auto-retry. Gating
+  // arrives with ticket 16.
+  server.registerTool(
+    'create_post',
+    {
+      title: 'Create a post',
+      description:
+        'Publishes a text post, verifies it by read-back, and refuses to double-post the same content. Reports verified:false honestly when the read-back cannot confirm.',
+      inputSchema: z.object({ text: z.string().min(1) }),
+    },
+    (args) => writeToolResult(options.readOnly, () => transport.createPost(args.text)),
+  );
+
+  server.registerTool(
+    'edit_post',
+    {
+      title: 'Edit a post',
+      description: 'Replaces a post\'s text and verifies the edit by read-back.',
+      inputSchema: z.object({ postId: z.string(), text: z.string().min(1) }),
+    },
+    (args) => writeToolResult(options.readOnly, () => transport.editPost(args.postId, args.text)),
+  );
+
+  server.registerTool(
+    'delete_post',
+    {
+      title: 'Delete a post',
+      description: 'Deletes a post through SDUI and verifies it no longer appears in the feed.',
+      inputSchema: z.object({ postId: z.string() }),
+    },
+    (args) => writeToolResult(options.readOnly, () => transport.deletePost(args.postId)),
+  );
+
+  server.registerTool(
+    'comment',
+    {
+      title: 'Comment on a post',
+      description: 'Leaves a text comment on a post.',
+      inputSchema: z.object({ postId: z.string(), text: z.string().min(1) }),
+    },
+    (args) => writeToolResult(options.readOnly, () => transport.commentOnPost(args.postId, args.text)),
+  );
+
+  server.registerTool(
+    'react',
+    {
+      title: 'React to a post',
+      description: 'Leaves a reaction on a post: LIKE, PRAISE, APPRECIATION, EMPATHY, INTEREST, or ENTERTAINMENT.',
+      inputSchema: z.object({
+        postId: z.string(),
+        reaction: z.enum(['LIKE', 'PRAISE', 'APPRECIATION', 'EMPATHY', 'INTEREST', 'ENTERTAINMENT']),
+      }),
+    },
+    (args) => writeToolResult(options.readOnly, () => transport.reactToPost(args.postId, args.reaction)),
+  );
+
   return server;
 }

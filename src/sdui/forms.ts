@@ -93,3 +93,23 @@ export function ghostDeleteForm(section: string, urn: string): SduiRequestBody {
   };
   return build(`${PROFILE}.deleteProfile${capitalized}Form`, payload, states);
 }
+
+/** com.linkedin.sdui.update.deletePost: delete a post by its numeric activity id. */
+export function deletePostForm(activityId: string): SduiRequestBody {
+  const states: SduiStateEntry[] = [];
+  const payload = {
+    activityId: ref(states, 'activityId', activityId),
+    trackingId: ref(states, 'trackingId', ''),
+  };
+  return build('com.linkedin.sdui.update.deletePost', payload, states);
+}
+
+/** com.linkedin.sdui.comments.createComment: comment on a post by URN. */
+export function commentForm(postUrn: string, text: string): SduiRequestBody {
+  const states: SduiStateEntry[] = [];
+  const payload = {
+    objectUrn: ref(states, 'objectUrn', postUrn),
+    comment: ref(states, 'comment', text),
+  };
+  return build('com.linkedin.sdui.comments.createComment', payload, states);
+}

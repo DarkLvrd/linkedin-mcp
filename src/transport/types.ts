@@ -19,6 +19,9 @@ import type {
 } from '../voyager/types.js';
 import type { SkillsState } from '../sdui/client.js';
 
+/** The reactions a person can leave on a post (research ticket 01). */
+export type ReactionType = 'LIKE' | 'PRAISE' | 'APPRECIATION' | 'EMPATHY' | 'INTEREST' | 'ENTERTAINMENT';
+
 export type SessionState = 'healthy' | 'unhealthy' | 'no-session';
 
 export interface SessionStatus {
@@ -43,6 +46,17 @@ export class SessionExpiredError extends Error {
     this.name = 'SessionExpiredError';
   }
 }
+
+/** The dedupe store already holds this content + target — never double-post. */
+export class AlreadyPostedError extends Error {
+  constructor() {
+    super('this content was already posted — refusing to double-post');
+    this.name = 'AlreadyPostedError';
+  }
+}
+
+/** The outcome of create_post: verified by read-back, or honestly unverified. */
+export type CreatePostResult = { verified: true; post: Post } | { verified: false; post: null };
 
 /** Profile changes accepted by the About form (ticket 11). */
 export interface ProfileUpdate {
@@ -76,4 +90,12 @@ export interface LinkedInTransport {
   removeSkill(skillUrn: string): Promise<SkillsState>;
   reorderSkills(newOrder: string[]): Promise<SkillsState>;
   deleteGhostEntry(ref: GhostEntryRef): Promise<{ ok: true }>;
+  // Posting (ticket 13). create_post verifies by read-back and refuses
+  // double-posts through the persisted dedupe store; a timeout never
+  // auto-retries, it verifies.
+  createPost(text: string): Promise<CreatePostResult>;
+  editPost(postId: string, text: string): Promise<{ ok: true }>;
+  deletePost(postId: string): Promise<{ ok: true }>;
+  commentOnPost(postId: string, text: string): Promise<{ ok: true }>;
+  reactToPost(postId: string, reaction: ReactionType): Promise<{ ok: true }>;
 }

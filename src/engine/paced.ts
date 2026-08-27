@@ -1,5 +1,11 @@
 import { SessionRequiredError } from '../transport/types.js';
-import type { GhostEntryRef, LinkedInTransport, ProfileUpdate } from '../transport/types.js';
+import type {
+  CreatePostResult,
+  GhostEntryRef,
+  LinkedInTransport,
+  ProfileUpdate,
+  ReactionType,
+} from '../transport/types.js';
 import type { JobSearchFilters } from '../voyager/types.js';
 import type { SessionCookies } from '../session/types.js';
 import {
@@ -162,5 +168,25 @@ export class PacedTransport implements LinkedInTransport {
 
   deleteGhostEntry(ref: GhostEntryRef) {
     return this.wrapWrite('delete_ghost_entry', () => this.inner.deleteGhostEntry(ref));
+  }
+
+  createPost(text: string): Promise<CreatePostResult> {
+    return this.wrapWrite('create_post', () => this.inner.createPost(text));
+  }
+
+  editPost(postId: string, text: string) {
+    return this.wrapWrite('edit_post', () => this.inner.editPost(postId, text));
+  }
+
+  deletePost(postId: string) {
+    return this.wrapWrite('delete_post', () => this.inner.deletePost(postId));
+  }
+
+  commentOnPost(postId: string, text: string) {
+    return this.wrapWrite('comment', () => this.inner.commentOnPost(postId, text));
+  }
+
+  reactToPost(postId: string, reaction: ReactionType) {
+    return this.wrapWrite('react', () => this.inner.reactToPost(postId, reaction));
   }
 }

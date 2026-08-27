@@ -1,8 +1,18 @@
-import { SessionRequiredError, SessionExpiredError } from '../transport/types.js';
+import { SessionRequiredError, SessionExpiredError, AlreadyPostedError } from '../transport/types.js';
+import type { CreatePostResult, ReactionType } from '../transport/types.js';
 import { VoyagerHealthProbe } from '../session/probe.js';
 import { SduiClient } from '../sdui/client.js';
-import { aboutForm, ghostDeleteForm, skillAddForm, skillDeleteForm } from '../sdui/forms.js';
+import {
+  aboutForm,
+  commentForm,
+  deletePostForm,
+  ghostDeleteForm,
+  skillAddForm,
+  skillDeleteForm,
+} from '../sdui/forms.js';
 import { linkedinHeaders } from '../session/cookies.js';
+import { InMemoryDedupeStore, dedupeKey } from '../posting/dedupe.js';
+import type { DedupeStore } from '../posting/dedupe.js';
 import type { GhostEntryRef, ProfileUpdate } from '../transport/types.js';
 import type { HealthProbe, SessionCookies } from '../session/types.js';
 import type { SkillsState } from '../sdui/client.js';
@@ -21,6 +31,8 @@ const DEFAULT_BASE_URL = 'https://www.linkedin.com';
 const ABOUT_FORM = 'com.linkedin.sdui.requests.profile.saveProfileAboutForm';
 const ADD_SKILL_FORM = 'com.linkedin.sdui.requests.profile.saveProfileSkillForm';
 const DELETE_SKILL_FORM = 'com.linkedin.sdui.requests.profile.deleteProfileSkillForm';
+const COMPOSE_PATH = '/voyager/api/graphql?action=execute&queryId=voyagerContentcreationDashShares';
+const REACTIONS_PATH = '/voyager/api/voyagerSocialDashReactions';
 
 /** Tolerant nested-path reads, mirroring what the Voyager web app returns. */
 function pickString(obj: unknown, ...paths: string[]): string {
@@ -72,6 +84,8 @@ export interface LinkedInHttpClientOptions {
   fetchFn?: typeof fetch;
   /** Injectable for tests; defaults to the real Voyager probe. */
   probe?: HealthProbe;
+  /** Where dedupe keys persist; the bin passes the file store, tests pass memory. */
+  dedupeStore?: DedupeStore;
 }
 
 /**
@@ -86,6 +100,7 @@ export class LinkedInHttpClient {
   private readonly probe: HealthProbe;
   private readonly cookiesProvider: SessionCookies | null | (() => SessionCookies | null);
   private readonly sdui: SduiClient;
+  private readonly dedupeStore: DedupeStore;
 
   constructor(options: LinkedInHttpClientOptions) {
     this.cookiesProvider = options.cookies;
@@ -93,6 +108,9 @@ export class LinkedInHttpClient {
     this.fetchFn = options.fetchFn ?? fetch;
     this.probe = options.probe ?? new VoyagerHealthProbe(this.baseUrl);
     this.sdui = new SduiClient({ cookies: () => this.currentCookies(), baseUrl: this.baseUrl, fetchFn: this.fetchFn });
+    // The in-memory fallback is a safety net, never the production store — the
+    // bin always passes the persisted file store.
+    this.dedupeStore = options.dedupeStore ?? new InMemoryDedupeStore();
   }
 
   private currentCookies(): SessionCookies | null {
@@ -134,6 +152,64 @@ export class LinkedInHttpClient {
     if (!result.ok) {
       throw new Error(result.error);
     }
+  }
+
+  /**
+   * POST JSON and report whether the request reached LinkedIn. A fetch
+   * rejection means "likely never sent" (safe to retry); any received
+   * response — including a body-read timeout — means "sent" (never
+   * auto-retry; verify instead).
+   */
+  private async postJson(
+    path: string,
+    body: unknown,
+  ): Promise<{ sent: boolean; status: number; json: unknown }> {
+    let response: Response;
+    try {
+      response = await this.fetchFn(`${this.baseUrl}${path}`, {
+        method: 'POST',
+        headers: { ...this.headers(this.requireSession()), 'content-type': 'application/json; charset=UTF-8' },
+        body: JSON.stringify(body),
+        redirect: 'manual',
+      });
+    } catch {
+      return { sent: false, status: 0, json: null };
+    }
+    if (response.status === 401) {
+      throw new SessionExpiredError('401');
+    }
+    if (response.status === 403) {
+      throw new SessionExpiredError('403-CSRF');
+    }
+    const location = response.headers.get('location');
+    if (response.status >= 300 && response.status < 400 && location !== null && location.includes('/voyager/api/')) {
+      throw new SessionExpiredError('redirect-to-self');
+    }
+    let json: unknown = null;
+    try {
+      json = await response.json();
+    } catch {
+      // Body read failed (timeout) — the request was still sent.
+    }
+    return { sent: true, status: response.status, json };
+  }
+
+  private async verifyOwnPost(predicate: (post: Post) => boolean): Promise<Post | null> {
+    const posts = await this.getPosts(25);
+    return posts.find(predicate) ?? null;
+  }
+
+  private async myId(): Promise<string> {
+    return (await this.getMe()).id;
+  }
+
+  private composeBody(text: string, extra: Record<string, unknown> = {}): unknown {
+    return {
+      variables: {
+        shareContent: { commentary: { text }, shareMediaCategory: 'NONE' },
+        ...extra,
+      },
+    };
   }
 
   async getSessionStatus() {
@@ -275,6 +351,73 @@ export class LinkedInHttpClient {
       `com.linkedin.sdui.requests.profile.deleteProfile${ref.section.charAt(0).toUpperCase() + ref.section.slice(1)}Form`,
       ghostDeleteForm(ref.section, ref.urn),
     );
+    return { ok: true };
+  }
+
+  // ── Posting (ticket 13): compose → verify → dedupe; never auto-retry. ──
+
+  async createPost(text: string): Promise<CreatePostResult> {
+    const key = dedupeKey('post', 'profile', text);
+    if (this.dedupeStore.has(key)) {
+      throw new AlreadyPostedError();
+    }
+    const result = await this.postJson(COMPOSE_PATH, this.composeBody(text));
+    if (!result.sent) {
+      throw new Error('post request failed before sending — nothing was posted, safe to retry');
+    }
+    if (result.status !== 200 && result.status !== 201) {
+      throw new Error(`post failed: HTTP ${result.status} — nothing was posted, safe to retry`);
+    }
+    // The request reached LinkedIn; from here on, this content can never
+    // double-post, even across sessions.
+    this.dedupeStore.add(key);
+    const me = await this.myId();
+    const post = await this.verifyOwnPost((p) => p.text === text && p.authorUrn === me);
+    return post !== null ? { verified: true, post } : { verified: false, post: null };
+  }
+
+  async editPost(postId: string, text: string): Promise<{ ok: true }> {
+    const result = await this.postJson(COMPOSE_PATH, this.composeBody(text, { resourceKey: postId }));
+    if (!result.sent) {
+      throw new Error('edit request failed before sending — nothing was edited, safe to retry');
+    }
+    if (result.status !== 200 && result.status !== 201) {
+      throw new Error(`edit failed: HTTP ${result.status} — nothing was edited, safe to retry`);
+    }
+    const me = await this.myId();
+    const post = await this.verifyOwnPost((p) => p.id === postId && p.text === text && p.authorUrn === me);
+    if (post === null) {
+      throw new Error('edit not verified by read-back — check the post manually');
+    }
+    return { ok: true };
+  }
+
+  async deletePost(postId: string): Promise<{ ok: true }> {
+    const activityId = postId.replace('urn:li:activity:', '');
+    await this.submitOrThrow('com.linkedin.sdui.update.deletePost', deletePostForm(activityId));
+    const stillThere = await this.verifyOwnPost((p) => p.id === postId);
+    if (stillThere !== null) {
+      throw new Error('delete not verified — the post still appears in the feed');
+    }
+    return { ok: true };
+  }
+
+  async commentOnPost(postId: string, text: string): Promise<{ ok: true }> {
+    await this.submitOrThrow('com.linkedin.sdui.comments.createComment', commentForm(postId, text));
+    return { ok: true };
+  }
+
+  async reactToPost(postId: string, reaction: ReactionType): Promise<{ ok: true }> {
+    const result = await this.postJson(
+      `${REACTIONS_PATH}?threadUrn=${encodeURIComponent(postId)}`,
+      { reactionType: reaction },
+    );
+    if (!result.sent) {
+      throw new Error('reaction request failed before sending — safe to retry');
+    }
+    if (result.status !== 200 && result.status !== 201) {
+      throw new Error(`reaction failed: HTTP ${result.status} — safe to retry`);
+    }
     return { ok: true };
   }
 }

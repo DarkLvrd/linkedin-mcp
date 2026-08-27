@@ -9,7 +9,14 @@ import type {
   Profile,
 } from '../voyager/types.js';
 import type { SkillsState } from '../sdui/client.js';
-import type { GhostEntryRef, LinkedInTransport, ProfileUpdate, SessionStatus } from './types.js';
+import type {
+  CreatePostResult,
+  GhostEntryRef,
+  LinkedInTransport,
+  ProfileUpdate,
+  ReactionType,
+  SessionStatus,
+} from './types.js';
 
 export interface FakeTransportOptions {
   state: SessionStatus['state'];
@@ -114,6 +121,26 @@ export class FakeTransport implements LinkedInTransport {
   }
 
   deleteGhostEntry(_ref: GhostEntryRef): Promise<{ ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  createPost(text: string): Promise<CreatePostResult> {
+    return Promise.resolve({ verified: true, post: { id: 'urn:li:activity:new', authorUrn: 'urn:li:member:42', text, publishedAt: '2026-05-28T20:26:40.000Z' } });
+  }
+
+  editPost(): Promise<{ ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  deletePost(): Promise<{ ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  commentOnPost(): Promise<{ ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  reactToPost(_postId: string, _reaction: ReactionType): Promise<{ ok: true }> {
     return Promise.resolve({ ok: true });
   }
 }
