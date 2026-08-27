@@ -1,0 +1,10 @@
+{
+  "profile": {
+    "id": "urn:li:member:42",
+    "firstName": { "localized": { "en_US": "Muizz" } },
+    "lastName": { "localized": { "en_US": "Bankole" } },
+    "headline": "Engineer",
+    "location": { "localized": { "en_US": "Toronto, Canada" } },
+    "summary": { "text": "I build things." }
+  }
+}

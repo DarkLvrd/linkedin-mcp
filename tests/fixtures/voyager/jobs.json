@@ -1,0 +1,16 @@
+{
+  "data": {
+    "data": {
+      "jobPostingSearchResults": {
+        "elements": [
+          {
+            "entityUrn": "urn:li:jobPosting:900",
+            "title": "Senior Engineer",
+            "companyDetails": { "company": { "name": "Acme" } },
+            "secondaryDescription": { "text": "Toronto, ON" }
+          }
+        ]
+      }
+    }
+  }
+}

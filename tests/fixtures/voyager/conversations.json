@@ -1,0 +1,12 @@
+{
+  "elements": [
+    {
+      "urn": "urn:li:msg_conversation:500",
+      "participants": [
+        { "urn": "urn:li:member:42" },
+        { "urn": "urn:li:member:7" }
+      ],
+      "lastActivityAt": 1780000200000
+    }
+  ]
+}

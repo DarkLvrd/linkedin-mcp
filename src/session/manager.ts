@@ -38,15 +38,20 @@ export class SessionManagerImpl implements SessionManager {
     }
   }
 
-  async getSessionStatus(): Promise<{ state: 'healthy' | 'unhealthy' | 'no-session'; reason?: string }> {
+  getSessionStatus(): Promise<{ state: 'healthy' | 'unhealthy' | 'no-session'; reason?: string }> {
     if (this.cached === null) {
-      return { state: 'no-session' };
+      return Promise.resolve({ state: 'no-session' });
     }
-    const result = await this.deps.probe.probe(this.cached);
-    if (result.health === 'unhealthy') {
-      return { state: 'unhealthy', ...(result.reason !== undefined ? { reason: result.reason } : {}) };
-    }
-    return { state: 'healthy' };
+    return this.deps.probe.probe(this.cached).then((result) => {
+      if (result.health === 'unhealthy') {
+        return { state: 'unhealthy', ...(result.reason !== undefined ? { reason: result.reason } : {}) };
+      }
+      return { state: 'healthy' };
+    });
+  }
+
+  getCookies(): SessionCookies | null {
+    return this.cached;
   }
 
   clear(): void {

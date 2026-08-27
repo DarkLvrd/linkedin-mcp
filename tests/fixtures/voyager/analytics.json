@@ -1,0 +1,10 @@
+{
+  "elements": [
+    {
+      "urn": "urn:li:fsd_profileView:42",
+      "viewsByMonth": [
+        { "month": 8, "year": 2026, "views": 120 }
+      ]
+    }
+  ]
+}

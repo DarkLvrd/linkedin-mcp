@@ -1,18 +1,38 @@
+import type {
+  Analytics,
+  ConnectionsSummary,
+  Conversation,
+  Job,
+  JobSearchFilters,
+  Member,
+  Post,
+  Profile,
+} from '../voyager/types.js';
 import type { LinkedInTransport, SessionStatus } from './types.js';
 
 export interface FakeTransportOptions {
   state: SessionStatus['state'];
   reason?: SessionStatus['reason'];
   readOnly?: boolean;
+  reads?: {
+    me?: Member;
+    profile?: Profile;
+    posts?: Post[];
+    conversations?: Conversation[];
+    connectionsSummary?: ConnectionsSummary;
+    jobs?: Job[];
+    analytics?: Analytics;
+  };
 }
 
 /**
- * In-memory transport for tests and offline development.
- * Implements the full LinkedInTransport contract; nothing about a real
- * LinkedIn session leaks into it.
+ * In-memory transport for tests and offline development. Implements the full
+ * LinkedInTransport contract — the read methods return canned data, overridable
+ * per test — so nothing about a real LinkedIn session leaks into it.
  */
 export class FakeTransport implements LinkedInTransport {
   private readonly status: SessionStatus;
+  private readonly reads: NonNullable<FakeTransportOptions['reads']>;
 
   constructor(options: FakeTransportOptions) {
     this.status = {
@@ -20,9 +40,54 @@ export class FakeTransport implements LinkedInTransport {
       ...(options.reason !== undefined ? { reason: options.reason } : {}),
       readOnly: options.readOnly ?? false,
     };
+    this.reads = {
+      me: { id: 'urn:li:member:42', firstName: 'Test', lastName: 'User', headline: 'Tester', vanityName: 'testuser' },
+      profile: {
+        id: 'urn:li:member:42',
+        firstName: 'Test',
+        lastName: 'User',
+        headline: 'Tester',
+        location: 'Testville',
+        about: 'Testing things.',
+      },
+      posts: [],
+      conversations: [],
+      connectionsSummary: { connections: 0 },
+      jobs: [],
+      analytics: { profileViews: 0 },
+      ...options.reads,
+    };
   }
 
   getSessionStatus(): Promise<SessionStatus> {
     return Promise.resolve(this.status);
+  }
+
+  getMe(): Promise<Member> {
+    return Promise.resolve(this.reads.me!);
+  }
+
+  getProfile(): Promise<Profile> {
+    return Promise.resolve(this.reads.profile!);
+  }
+
+  getPosts(): Promise<Post[]> {
+    return Promise.resolve(this.reads.posts!);
+  }
+
+  getConversations(): Promise<Conversation[]> {
+    return Promise.resolve(this.reads.conversations!);
+  }
+
+  getConnectionsSummary(): Promise<ConnectionsSummary> {
+    return Promise.resolve(this.reads.connectionsSummary!);
+  }
+
+  getJobs(_filters: JobSearchFilters): Promise<Job[]> {
+    return Promise.resolve(this.reads.jobs!);
+  }
+
+  getAnalytics(): Promise<Analytics> {
+    return Promise.resolve(this.reads.analytics!);
   }
 }

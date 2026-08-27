@@ -36,5 +36,7 @@ export interface SessionManager {
   /** Load a previously saved session (no-op when none exists). */
   restore(): void;
   getSessionStatus(): Promise<{ state: 'healthy' | 'unhealthy' | 'no-session'; reason?: string }>;
+  /** Internal trust boundary: hands cookies to the transport layer only. */
+  getCookies(): SessionCookies | null;
   clear(): void;
 }

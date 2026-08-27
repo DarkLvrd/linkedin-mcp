@@ -1,0 +1,16 @@
+{
+  "elements": [
+    {
+      "urn": "urn:li:activity:100",
+      "actor": { "urn": "urn:li:member:42" },
+      "commentary": { "text": { "text": "Hello LinkedIn!" } },
+      "createdAt": 1780000000000
+    },
+    {
+      "urn": "urn:li:activity:101",
+      "actor": { "urn": "urn:li:member:7" },
+      "commentary": { "text": { "text": "Great post." } },
+      "createdAt": 1780000100000
+    }
+  ]
+}

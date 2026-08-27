@@ -3,7 +3,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createAgenticLinkedinServer } from '../src/server.js';
 import { SessionManagerImpl } from '../src/session/manager.js';
-import { SessionTransport } from '../src/transport/session.js';
+import { VoyagerClient } from '../src/voyager/client.js';
+import { fixtureFetch } from './fixtures/fetch.js';
 import type { BrowserSession, HealthProbe, SessionCookies, SessionStore } from '../src/session/types.js';
 
 const cookies: SessionCookies = { li_at: 'AQED-x', obtainedAt: '2026-08-24T12:00:00.000Z' };
@@ -44,7 +45,15 @@ function makeManager(store: SessionStore) {
 }
 
 async function startServerWithSession(manager: SessionManagerImpl) {
-  const server = createAgenticLinkedinServer(new SessionTransport(manager), {
+  // The real wiring: the Voyager client consults the manager's cookies on
+  // every request (so a login that happens later is picked up) and uses a
+  // fixture fetch + fake probe, so nothing in this test touches the network.
+  const transport = new VoyagerClient({
+    cookies: () => manager.getCookies(),
+    fetchFn: fixtureFetch({}),
+    probe: new FakeProbe(),
+  });
+  const server = createAgenticLinkedinServer(transport, {
     readOnly: false,
     session: manager,
   });
@@ -63,7 +72,7 @@ async function callTool(client: Client, name: string, args: Record<string, unkno
     .join('');
 }
 
-describe('session wiring (login tool + SessionTransport)', () => {
+describe('session wiring (login tool + Voyager transport)', () => {
   it('registers a login tool that signs in once and persists the session', async () => {
     const store = new FakeStore();
     const manager = makeManager(store);
@@ -81,7 +90,7 @@ describe('session wiring (login tool + SessionTransport)', () => {
     }
   });
 
-  it('session_status reports healthy through the session transport after login', async () => {
+  it('session_status reports healthy through the Voyager transport after login', async () => {
     const store = new FakeStore();
     const manager = makeManager(store);
     const { client, serverConnected } = await startServerWithSession(manager);

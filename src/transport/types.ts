@@ -7,6 +7,17 @@
  * browser fallback) plug in below it without touching that logic.
  */
 
+import type {
+  Analytics,
+  ConnectionsSummary,
+  Conversation,
+  Job,
+  JobSearchFilters,
+  Member,
+  Post,
+  Profile,
+} from '../voyager/types.js';
+
 export type SessionState = 'healthy' | 'unhealthy' | 'no-session';
 
 export interface SessionStatus {
@@ -16,7 +27,32 @@ export interface SessionStatus {
   readOnly: boolean;
 }
 
+/** A read or write was attempted without a sign-in. */
+export class SessionRequiredError extends Error {
+  constructor() {
+    super('no LinkedIn session — run login first');
+    this.name = 'SessionRequiredError';
+  }
+}
+
+/** The session died mid-flight (401, 403-CSRF, or redirect-to-self). */
+export class SessionExpiredError extends Error {
+  constructor(reason: string) {
+    super(`session expired (${reason}) — run login again`);
+    this.name = 'SessionExpiredError';
+  }
+}
+
 export interface LinkedInTransport {
   /** Probe the current session. Never throws; reports health honestly. */
   getSessionStatus(): Promise<SessionStatus>;
+  // Reads (ticket 10). Throw SessionRequiredError / SessionExpiredError when
+  // the session is missing or dead.
+  getMe(): Promise<Member>;
+  getProfile(identifier: string): Promise<Profile>;
+  getPosts(limit: number): Promise<Post[]>;
+  getConversations(limit: number): Promise<Conversation[]>;
+  getConnectionsSummary(): Promise<ConnectionsSummary>;
+  getJobs(filters: JobSearchFilters): Promise<Job[]>;
+  getAnalytics(): Promise<Analytics>;
 }
