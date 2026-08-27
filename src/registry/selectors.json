@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "selectors": [
+    {
+      "id": "feed.startPostButton",
+      "strategies": [
+        { "kind": "aria-label", "value": "Start a post" },
+        { "kind": "role", "value": "button" },
+        { "kind": "text", "value": "Start a post" }
+      ]
+    }
+  ]
+}
