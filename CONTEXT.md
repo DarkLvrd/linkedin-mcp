@@ -17,3 +17,5 @@ The shared vocabulary of this effort. Terms are resolved during wayfinder charti
 - **browserless-first** — the posture: the server talks to LinkedIn over plain HTTP (Voyager + SDUI); a browser is used only for sign-in and for the few writes that need a page context.
 - **verify-after-post** — after a write, the server reads back what it wrote and confirms it landed; the read-back is the single source of truth, never the response code.
 - **write gate** — every write requires approval (dry-run / diff preview) before it executes.
+- **plan-then-execute** — the agent first shows an ordered plan list of all intended writes with previews; nothing executes until the user approves the whole plan.
+- **failure artifact** — screenshot, DOM dump, and diagnostics captured when a lookup or write fails; session values are redacted, never written to disk.
