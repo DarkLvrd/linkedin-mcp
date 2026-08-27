@@ -1,0 +1,31 @@
+{
+  "name": "agentic-linkedin",
+  "version": "0.1.0",
+  "description": "The LinkedIn MCP that never breaks — an AI agent can do everything a person can do on LinkedIn.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "agentic-linkedin": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run build && npm test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@types/node": "^26.4.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}
