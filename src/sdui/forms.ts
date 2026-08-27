@@ -1,0 +1,95 @@
+import { randomUUID } from 'node:crypto';
+
+/**
+ * SDUI request bodies (research ticket 01). LinkedIn's profile forms send
+ * MemoryNamespace state-references in the payload AND the real literal values
+ * in a top-level states[] array — that duplication is what makes them
+ * replayable browserless. The keys are minted per request; the states[]
+ * entries carry the actual values.
+ */
+
+export interface SduiStateEntry {
+  key: string;
+  namespace: string;
+  value: string;
+}
+
+export interface SduiRequestBody {
+  requestId: string;
+  serverRequest: {
+    requestId: string;
+    requestedArguments: {
+      $type: string;
+      payload: Record<string, unknown>;
+    };
+  };
+  states: SduiStateEntry[];
+}
+
+const PROFILE = 'com.linkedin.sdui.requests.profile';
+const NAMESPACE = 'MemoryNamespace';
+
+function ref(states: SduiStateEntry[], label: string, value: string): { key: string; namespace: string } {
+  const key = `${label}${randomUUID()}`;
+  states.push({ key, namespace: NAMESPACE, value });
+  return { key, namespace: NAMESPACE };
+}
+
+function build(requestId: string, payload: Record<string, unknown>, states: SduiStateEntry[]): SduiRequestBody {
+  return {
+    requestId,
+    serverRequest: {
+      requestId,
+      requestedArguments: {
+        $type: 'proto.sdui.actions.requests.RequestedArguments',
+        payload,
+      },
+    },
+    states,
+  };
+}
+
+/** saveProfileSkillForm: add a skill by name + typeahead skill id. */
+export function skillAddForm(name: string, skillId: string): SduiRequestBody {
+  const states: SduiStateEntry[] = [];
+  const payload = {
+    skillName: ref(states, 'addSkillsTypeaheadSkillName', name),
+    skillId: ref(states, 'addSkillsTypeahead', skillId),
+  };
+  return build(`${PROFILE}.saveProfileSkillForm`, payload, states);
+}
+
+/** deleteProfileSkillForm: remove a skill by its profile-skill URN. */
+export function skillDeleteForm(skillUrn: string): SduiRequestBody {
+  const states: SduiStateEntry[] = [];
+  const payload = {
+    skill: ref(states, 'skill', skillUrn),
+  };
+  return build(`${PROFILE}.deleteProfileSkillForm`, payload, states);
+}
+
+/** saveProfileAboutForm: headline, about, and the re-orderable top-skills. */
+export function aboutForm(changes: { headline?: string; about?: string; topSkills?: string[] }): SduiRequestBody {
+  const states: SduiStateEntry[] = [];
+  const payload: Record<string, unknown> = {};
+  if (changes.headline !== undefined) {
+    payload['headline'] = ref(states, 'headline', changes.headline);
+  }
+  if (changes.about !== undefined) {
+    payload['about'] = ref(states, 'about', changes.about);
+  }
+  if (changes.topSkills !== undefined) {
+    payload['topSkills'] = changes.topSkills.map((skill) => ref(states, 'topSkill', skill));
+  }
+  return build(`${PROFILE}.saveProfileAboutForm`, payload, states);
+}
+
+/** deleteProfile<Section>Form: remove an entry that standard deletes miss (ghost entry). */
+export function ghostDeleteForm(section: string, urn: string): SduiRequestBody {
+  const states: SduiStateEntry[] = [];
+  const capitalized = section.charAt(0).toUpperCase() + section.slice(1);
+  const payload = {
+    entry: ref(states, `${section}Entry`, urn),
+  };
+  return build(`${PROFILE}.deleteProfile${capitalized}Form`, payload, states);
+}

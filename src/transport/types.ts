@@ -17,6 +17,7 @@ import type {
   Post,
   Profile,
 } from '../voyager/types.js';
+import type { SkillsState } from '../sdui/client.js';
 
 export type SessionState = 'healthy' | 'unhealthy' | 'no-session';
 
@@ -43,6 +44,19 @@ export class SessionExpiredError extends Error {
   }
 }
 
+/** Profile changes accepted by the About form (ticket 11). */
+export interface ProfileUpdate {
+  headline?: string;
+  about?: string;
+  topSkills?: string[];
+}
+
+/** A profile entry that standard deletes miss — removed via SDUI. */
+export interface GhostEntryRef {
+  section: string;
+  urn: string;
+}
+
 export interface LinkedInTransport {
   /** Probe the current session. Never throws; reports health honestly. */
   getSessionStatus(): Promise<SessionStatus>;
@@ -55,4 +69,11 @@ export interface LinkedInTransport {
   getConnectionsSummary(): Promise<ConnectionsSummary>;
   getJobs(filters: JobSearchFilters): Promise<Job[]>;
   getAnalytics(): Promise<Analytics>;
+  // Writes (ticket 11). Every write verifies by read-back before reporting
+  // success; every delete routes through SDUI, never Voyager DELETE.
+  updateProfile(changes: ProfileUpdate): Promise<Profile>;
+  addSkill(name: string): Promise<SkillsState>;
+  removeSkill(skillUrn: string): Promise<SkillsState>;
+  reorderSkills(newOrder: string[]): Promise<SkillsState>;
+  deleteGhostEntry(ref: GhostEntryRef): Promise<{ ok: true }>;
 }

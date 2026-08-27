@@ -6,10 +6,16 @@
 export function fixtureFetch(fixtures: Record<string, unknown>): typeof fetch {
   return async (input: RequestInfo | URL): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    const pathname = new URL(url).pathname;
-    // Exact pathname match, or a pathname that starts at a segment boundary —
-    // so '/voyager/api/me' never matches '/voyager/api/messaging/...'.
+    const parsed = new URL(url);
+    const pathname = parsed.pathname;
+    const full = pathname + parsed.search;
     const key = Object.keys(fixtures).find((k) => {
+      if (k.includes('?')) {
+        // Keys with a query string match exactly (used for sduiid routes).
+        return full === new URL(k, 'https://fixtures.local').pathname + new URL(k, 'https://fixtures.local').search;
+      }
+      // Plain path keys match at a segment boundary — so '/voyager/api/me'
+      // never matches '/voyager/api/messaging/...'.
       const keyPath = new URL(k, 'https://fixtures.local').pathname;
       return pathname === keyPath || pathname.startsWith(keyPath + '/');
     });

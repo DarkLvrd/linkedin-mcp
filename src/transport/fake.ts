@@ -8,7 +8,8 @@ import type {
   Post,
   Profile,
 } from '../voyager/types.js';
-import type { LinkedInTransport, SessionStatus } from './types.js';
+import type { SkillsState } from '../sdui/client.js';
+import type { GhostEntryRef, LinkedInTransport, ProfileUpdate, SessionStatus } from './types.js';
 
 export interface FakeTransportOptions {
   state: SessionStatus['state'];
@@ -89,5 +90,30 @@ export class FakeTransport implements LinkedInTransport {
 
   getAnalytics(): Promise<Analytics> {
     return Promise.resolve(this.reads.analytics!);
+  }
+
+  updateProfile(changes: ProfileUpdate): Promise<Profile> {
+    const profile = this.reads.profile!;
+    return Promise.resolve({
+      ...profile,
+      ...(changes.headline !== undefined ? { headline: changes.headline } : {}),
+      ...(changes.about !== undefined ? { about: changes.about } : {}),
+    });
+  }
+
+  addSkill(name: string): Promise<SkillsState> {
+    return Promise.resolve({ skills: [{ name, urn: 'urn:li:fsd_profileSkill:fake' }] });
+  }
+
+  removeSkill(): Promise<SkillsState> {
+    return Promise.resolve({ skills: [] });
+  }
+
+  reorderSkills(newOrder: string[]): Promise<SkillsState> {
+    return Promise.resolve({ skills: newOrder.map((name, index) => ({ name, urn: `urn:li:fsd_profileSkill:${index}` })) });
+  }
+
+  deleteGhostEntry(_ref: GhostEntryRef): Promise<{ ok: true }> {
+    return Promise.resolve({ ok: true });
   }
 }

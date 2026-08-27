@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createAgenticLinkedinServer } from '../src/server.js';
 import { SessionManagerImpl } from '../src/session/manager.js';
-import { VoyagerClient } from '../src/voyager/client.js';
+import { LinkedInHttpClient } from '../src/voyager/client.js';
 import { fixtureFetch } from './fixtures/fetch.js';
 import type { BrowserSession, HealthProbe, SessionCookies, SessionStore } from '../src/session/types.js';
 
@@ -48,7 +48,7 @@ async function startServerWithSession(manager: SessionManagerImpl) {
   // The real wiring: the Voyager client consults the manager's cookies on
   // every request (so a login that happens later is picked up) and uses a
   // fixture fetch + fake probe, so nothing in this test touches the network.
-  const transport = new VoyagerClient({
+  const transport = new LinkedInHttpClient({
     cookies: () => manager.getCookies(),
     fetchFn: fixtureFetch({}),
     probe: new FakeProbe(),

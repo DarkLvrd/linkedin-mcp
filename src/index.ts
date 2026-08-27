@@ -7,7 +7,7 @@ import { PlaywrightBrowserSession } from './session/browser.js';
 import { SessionManagerImpl } from './session/manager.js';
 import { VoyagerHealthProbe } from './session/probe.js';
 import { FileSessionStore } from './session/store.js';
-import { VoyagerClient } from './voyager/client.js';
+import { LinkedInHttpClient } from './voyager/client.js';
 
 const readOnly =
   process.env.LINKEDIN_READ_ONLY === '1' || process.env.LINKEDIN_READ_ONLY === 'true';
@@ -24,7 +24,7 @@ session.restore();
 
 // The transport is the seam: the Voyager client consults the manager's
 // cookies on every request (or honestly reports no-session before a sign-in).
-const transport = new VoyagerClient({ cookies: () => session.getCookies() });
+const transport = new LinkedInHttpClient({ cookies: () => session.getCookies() });
 
 const server = createAgenticLinkedinServer(transport, {
   readOnly,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { VoyagerClient } from '../src/voyager/client.js';
+import { LinkedInHttpClient } from '../src/voyager/client.js';
 import { SessionRequiredError } from '../src/transport/types.js';
 import { fixtureFetch } from './fixtures/fetch.js';
 import type { SessionCookies } from '../src/session/types.js';
@@ -22,14 +22,14 @@ const fixtures = {
 };
 
 function makeClient() {
-  return new VoyagerClient({
+  return new LinkedInHttpClient({
     cookies,
     baseUrl: 'https://www.linkedin.com',
     fetchFn: fixtureFetch(fixtures),
   });
 }
 
-describe('VoyagerClient reads (fixture-replay, no network)', () => {
+describe('LinkedInHttpClient reads (fixture-replay, no network)', () => {
   it('maps /me to a clean Member shape', async () => {
     const member = await makeClient().getMe();
     expect(member).toEqual({
@@ -94,7 +94,7 @@ describe('VoyagerClient reads (fixture-replay, no network)', () => {
   });
 
   it('reports no-session when no cookies are available', async () => {
-    const client = new VoyagerClient({
+    const client = new LinkedInHttpClient({
       cookies: null,
       baseUrl: 'https://www.linkedin.com',
       fetchFn: fixtureFetch(fixtures),
@@ -103,7 +103,7 @@ describe('VoyagerClient reads (fixture-replay, no network)', () => {
   });
 
   it('refuses reads without a session with a clear error', async () => {
-    const client = new VoyagerClient({
+    const client = new LinkedInHttpClient({
       cookies: null,
       baseUrl: 'https://www.linkedin.com',
       fetchFn: fixtureFetch(fixtures),

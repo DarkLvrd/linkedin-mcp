@@ -1,6 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { SessionExpiredError, SessionRequiredError } from './transport/types.js';
 import type { SessionManager } from './session/types.js';
 import type { LinkedInTransport, SessionStatus } from './transport/types.js';
 
@@ -12,17 +11,16 @@ export interface AgenticLinkedinServerOptions {
 }
 
 /**
- * Runs a tool body and maps session failures to clean tool errors instead of
- * raw exceptions. Anything else propagates to the MCP layer.
+ * Runs a tool body and maps any failure to a clean tool error instead of a
+ * raw exception — session problems, SDUI rejections, and network failures
+ * all surface as readable messages.
  */
 async function toolResult<T>(fn: () => Promise<T>): Promise<{ content: { type: 'text'; text: string }[]; isError: boolean }> {
   try {
     return { content: [{ type: 'text', text: JSON.stringify(await fn()) }], isError: false };
   } catch (error) {
-    if (error instanceof SessionRequiredError || error instanceof SessionExpiredError) {
-      return { content: [{ type: 'text', text: `error: ${error.message}` }], isError: true };
-    }
-    throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    return { content: [{ type: 'text', text: `error: ${message}` }], isError: true };
   }
 }
 
@@ -149,6 +147,70 @@ export function createAgenticLinkedinServer(
       inputSchema: z.object({}),
     },
     () => toolResult(() => transport.getAnalytics()),
+  );
+
+  // Writes (ticket 11). Every write verifies by read-back before reporting
+  // success; every delete routes through SDUI. Gating and pacing arrive with
+  // tickets 12 and 16.
+  server.registerTool(
+    'update_profile',
+    {
+      title: 'Update profile',
+      description: 'Edits headline, about, or top-skills and returns the verified profile (read-back).',
+      inputSchema: z.object({
+        headline: z.string().optional(),
+        about: z.string().optional(),
+        topSkills: z.array(z.string()).optional(),
+      }),
+    },
+    (args) =>
+      toolResult(() =>
+        transport.updateProfile({
+          ...(args.headline !== undefined ? { headline: args.headline } : {}),
+          ...(args.about !== undefined ? { about: args.about } : {}),
+          ...(args.topSkills !== undefined ? { topSkills: args.topSkills } : {}),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    'add_skill',
+    {
+      title: 'Add a skill',
+      description: 'Adds a skill to the profile and returns the verified skills state.',
+      inputSchema: z.object({ name: z.string() }),
+    },
+    (args) => toolResult(() => transport.addSkill(args.name)),
+  );
+
+  server.registerTool(
+    'remove_skill',
+    {
+      title: 'Remove a skill',
+      description: 'Removes a skill by its profile-skill URN and returns the verified skills state.',
+      inputSchema: z.object({ skillUrn: z.string() }),
+    },
+    (args) => toolResult(() => transport.removeSkill(args.skillUrn)),
+  );
+
+  server.registerTool(
+    'reorder_skills',
+    {
+      title: 'Reorder skills',
+      description: 'Reorders top skills (newest first) and returns the verified skills state.',
+      inputSchema: z.object({ order: z.array(z.string()).min(1) }),
+    },
+    (args) => toolResult(() => transport.reorderSkills(args.order)),
+  );
+
+  server.registerTool(
+    'delete_ghost_entry',
+    {
+      title: 'Delete a ghost entry',
+      description: 'Removes a profile entry that standard deletes miss, routed through SDUI.',
+      inputSchema: z.object({ section: z.string(), urn: z.string() }),
+    },
+    (args) => toolResult(() => transport.deleteGhostEntry({ section: args.section, urn: args.urn })),
   );
 
   return server;

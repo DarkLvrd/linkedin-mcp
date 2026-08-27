@@ -1,6 +1,11 @@
 import { SessionRequiredError, SessionExpiredError } from '../transport/types.js';
 import { VoyagerHealthProbe } from '../session/probe.js';
+import { SduiClient } from '../sdui/client.js';
+import { aboutForm, ghostDeleteForm, skillAddForm, skillDeleteForm } from '../sdui/forms.js';
+import { linkedinHeaders } from '../session/cookies.js';
+import type { GhostEntryRef, ProfileUpdate } from '../transport/types.js';
 import type { HealthProbe, SessionCookies } from '../session/types.js';
+import type { SkillsState } from '../sdui/client.js';
 import type {
   Analytics,
   ConnectionsSummary,
@@ -13,6 +18,9 @@ import type {
 } from './types.js';
 
 const DEFAULT_BASE_URL = 'https://www.linkedin.com';
+const ABOUT_FORM = 'com.linkedin.sdui.requests.profile.saveProfileAboutForm';
+const ADD_SKILL_FORM = 'com.linkedin.sdui.requests.profile.saveProfileSkillForm';
+const DELETE_SKILL_FORM = 'com.linkedin.sdui.requests.profile.deleteProfileSkillForm';
 
 /** Tolerant nested-path reads, mirroring what the Voyager web app returns. */
 function pickString(obj: unknown, ...paths: string[]): string {
@@ -57,7 +65,7 @@ function pickNumber(obj: unknown, ...paths: string[]): number {
   return 0;
 }
 
-export interface VoyagerClientOptions {
+export interface LinkedInHttpClientOptions {
   /** Cookies at construction, or a provider consulted on every request. */
   cookies: SessionCookies | null | (() => SessionCookies | null);
   baseUrl?: string;
@@ -67,22 +75,24 @@ export interface VoyagerClientOptions {
 }
 
 /**
- * The real transport: reads over Voyager REST with session cookies and the
- * CSRF header. Below the seam — the tools and domain logic above it only ever
- * see LinkedInTransport. Every read maps raw Voyager shapes to clean domain
- * types before anything leaves this class.
+ * The real transport (the seam's production implementation): Voyager for
+ * reads, SDUI for profile writes and deletes. Every write is submitted then
+ * verified by read-back before it is reported as done. No Voyager DELETE is
+ * ever used — it returns constant 400; deletes route through SDUI.
  */
-export class VoyagerClient {
+export class LinkedInHttpClient {
   private readonly baseUrl: string;
   private readonly fetchFn: typeof fetch;
   private readonly probe: HealthProbe;
   private readonly cookiesProvider: SessionCookies | null | (() => SessionCookies | null);
+  private readonly sdui: SduiClient;
 
-  constructor(options: VoyagerClientOptions) {
+  constructor(options: LinkedInHttpClientOptions) {
     this.cookiesProvider = options.cookies;
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
     this.fetchFn = options.fetchFn ?? fetch;
     this.probe = options.probe ?? new VoyagerHealthProbe(this.baseUrl);
+    this.sdui = new SduiClient({ cookies: () => this.currentCookies(), baseUrl: this.baseUrl, fetchFn: this.fetchFn });
   }
 
   private currentCookies(): SessionCookies | null {
@@ -98,10 +108,7 @@ export class VoyagerClient {
   }
 
   private headers(cookies: SessionCookies): Record<string, string> {
-    return {
-      cookie: `li_at=${cookies.li_at}${cookies.jsessionid !== undefined ? `; JSESSIONID=${cookies.jsessionid}` : ''}`,
-      ...(cookies.csrfToken !== undefined ? { 'csrf-token': cookies.csrfToken } : {}),
-    };
+    return linkedinHeaders(cookies);
   }
 
   private async request<T>(path: string): Promise<T> {
@@ -120,6 +127,13 @@ export class VoyagerClient {
       throw new Error(`Voyager request failed: HTTP ${response.status} for ${path}`);
     }
     return (await response.json()) as T;
+  }
+
+  private async submitOrThrow(sduiid: string, body: unknown): Promise<void> {
+    const result = await this.sdui.submit(sduiid, body);
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
   }
 
   async getSessionStatus() {
@@ -167,12 +181,11 @@ export class VoyagerClient {
     const raw = await this.request<{ elements?: unknown[] }>(`/voyager/api/feed/updatesV2?count=${limit}`);
     return (raw.elements ?? []).map((element) => {
       const record = element as Record<string, unknown>;
-      const createdAt = pickNumber(record, 'createdAt');
       return {
         id: pickString(record, 'urn'),
         authorUrn: pickString(record, 'actor.urn'),
         text: pickString(record, 'commentary.text.text'),
-        publishedAt: new Date(createdAt).toISOString(),
+        publishedAt: new Date(pickNumber(record, 'createdAt')).toISOString(),
       };
     });
   }
@@ -231,5 +244,37 @@ export class VoyagerClient {
       return sum + pickNumber(record, 'viewsByMonth.0.views');
     }, 0);
     return { profileViews: views };
+  }
+
+  // ── Writes (ticket 11): submit via SDUI, then verify by read-back. ─────
+
+  async updateProfile(changes: ProfileUpdate): Promise<Profile> {
+    await this.submitOrThrow(ABOUT_FORM, aboutForm(changes));
+    return this.getProfile('me');
+  }
+
+  async addSkill(name: string): Promise<SkillsState> {
+    // The typeahead skill id is server-issued; the name is the best client-
+    // side value we have until a live capture confirms the exact contract.
+    await this.submitOrThrow(ADD_SKILL_FORM, skillAddForm(name, name));
+    return this.sdui.readSkills();
+  }
+
+  async removeSkill(skillUrn: string): Promise<SkillsState> {
+    await this.submitOrThrow(DELETE_SKILL_FORM, skillDeleteForm(skillUrn));
+    return this.sdui.readSkills();
+  }
+
+  async reorderSkills(newOrder: string[]): Promise<SkillsState> {
+    await this.submitOrThrow(ABOUT_FORM, aboutForm({ topSkills: newOrder }));
+    return this.sdui.readSkills();
+  }
+
+  async deleteGhostEntry(ref: GhostEntryRef): Promise<{ ok: true }> {
+    await this.submitOrThrow(
+      `com.linkedin.sdui.requests.profile.deleteProfile${ref.section.charAt(0).toUpperCase() + ref.section.slice(1)}Form`,
+      ghostDeleteForm(ref.section, ref.urn),
+    );
+    return { ok: true };
   }
 }
