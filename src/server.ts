@@ -1,10 +1,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import type { SessionManager } from './session/types.js';
 import type { LinkedInTransport, SessionStatus } from './transport/types.js';
 
 export interface AgenticLinkedinServerOptions {
   /** When true, every write tool is blocked outright; reads keep working. */
   readOnly: boolean;
+  /** When provided, the server registers the one-time sign-in tool. */
+  session?: SessionManager;
 }
 
 /**
@@ -34,6 +37,22 @@ export function createAgenticLinkedinServer(
       return { content: [{ type: 'text', text: JSON.stringify(reported) }] };
     },
   );
+
+  if (options.session !== undefined) {
+    server.registerTool(
+      'login',
+      {
+        title: 'Sign in to LinkedIn',
+        description:
+          'Opens a browser window for a one-time sign-in. Sign in and close the window; the session is then persisted and restored across restarts.',
+        inputSchema: z.object({}),
+      },
+      async () => {
+        const result = await options.session?.login();
+        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+      },
+    );
+  }
 
   return server;
 }

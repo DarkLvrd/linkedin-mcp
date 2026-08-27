@@ -1,13 +1,29 @@
 #!/usr/bin/env node
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createAgenticLinkedinServer } from './server.js';
-import { NoSessionTransport } from './transport/no-session.js';
+import { PlaywrightBrowserSession } from './session/browser.js';
+import { SessionManagerImpl } from './session/manager.js';
+import { VoyagerHealthProbe } from './session/probe.js';
+import { FileSessionStore } from './session/store.js';
+import { SessionTransport } from './transport/session.js';
 
-const readOnly = process.env.LINKEDIN_READ_ONLY === '1' || process.env.LINKEDIN_READ_ONLY === 'true';
+const readOnly =
+  process.env.LINKEDIN_READ_ONLY === '1' || process.env.LINKEDIN_READ_ONLY === 'true';
 
-// The transport is the seam. Until the auth bootstrap lands (ticket 09),
-// the binary runs on the honest no-session transport.
-const transport = new NoSessionTransport();
+const sessionPath =
+  process.env.AGENTIC_LINKEDIN_SESSION_PATH ?? join(homedir(), '.agentic-linkedin', 'session.json');
 
-const server = createAgenticLinkedinServer(transport, { readOnly });
+const session = new SessionManagerImpl({
+  browser: new PlaywrightBrowserSession(),
+  store: new FileSessionStore(sessionPath),
+  probe: new VoyagerHealthProbe(),
+});
+session.restore();
+
+const server = createAgenticLinkedinServer(new SessionTransport(session), {
+  readOnly,
+  session,
+});
 await server.connect(new StdioServerTransport());

@@ -22,6 +22,7 @@
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/node": "^26.4.0",
+    "playwright": "^1.62.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
