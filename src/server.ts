@@ -24,6 +24,17 @@ async function toolResult<T>(fn: () => Promise<T>): Promise<{ content: { type: '
   }
 }
 
+/** Write tools: refused outright in read-only mode, then run like any tool. */
+async function writeToolResult<T>(
+  readOnly: boolean,
+  fn: () => Promise<T>,
+): Promise<{ content: { type: 'text'; text: string }[]; isError: boolean }> {
+  if (readOnly) {
+    return { content: [{ type: 'text', text: 'error: read-only mode — writes are blocked' }], isError: true };
+  }
+  return toolResult(fn);
+}
+
 /**
  * Build the MCP server exposing the agentic-linkedin tools.
  * The transport is injected through the seam; domain logic and tools are
@@ -164,7 +175,7 @@ export function createAgenticLinkedinServer(
       }),
     },
     (args) =>
-      toolResult(() =>
+      writeToolResult(options.readOnly, () =>
         transport.updateProfile({
           ...(args.headline !== undefined ? { headline: args.headline } : {}),
           ...(args.about !== undefined ? { about: args.about } : {}),
@@ -180,7 +191,7 @@ export function createAgenticLinkedinServer(
       description: 'Adds a skill to the profile and returns the verified skills state.',
       inputSchema: z.object({ name: z.string() }),
     },
-    (args) => toolResult(() => transport.addSkill(args.name)),
+    (args) => writeToolResult(options.readOnly, () => transport.addSkill(args.name)),
   );
 
   server.registerTool(
@@ -190,7 +201,7 @@ export function createAgenticLinkedinServer(
       description: 'Removes a skill by its profile-skill URN and returns the verified skills state.',
       inputSchema: z.object({ skillUrn: z.string() }),
     },
-    (args) => toolResult(() => transport.removeSkill(args.skillUrn)),
+    (args) => writeToolResult(options.readOnly, () => transport.removeSkill(args.skillUrn)),
   );
 
   server.registerTool(
@@ -200,7 +211,7 @@ export function createAgenticLinkedinServer(
       description: 'Reorders top skills (newest first) and returns the verified skills state.',
       inputSchema: z.object({ order: z.array(z.string()).min(1) }),
     },
-    (args) => toolResult(() => transport.reorderSkills(args.order)),
+    (args) => writeToolResult(options.readOnly, () => transport.reorderSkills(args.order)),
   );
 
   server.registerTool(
@@ -210,7 +221,7 @@ export function createAgenticLinkedinServer(
       description: 'Removes a profile entry that standard deletes miss, routed through SDUI.',
       inputSchema: z.object({ section: z.string(), urn: z.string() }),
     },
-    (args) => toolResult(() => transport.deleteGhostEntry({ section: args.section, urn: args.urn })),
+    (args) => writeToolResult(options.readOnly, () => transport.deleteGhostEntry({ section: args.section, urn: args.urn })),
   );
 
   return server;

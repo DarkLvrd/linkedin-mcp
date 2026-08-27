@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createAgenticLinkedinServer } from './server.js';
+import { PacedTransport } from './engine/paced.js';
 import { PlaywrightBrowserSession } from './session/browser.js';
 import { SessionManagerImpl } from './session/manager.js';
 import { VoyagerHealthProbe } from './session/probe.js';
@@ -22,9 +23,11 @@ const session = new SessionManagerImpl({
 });
 session.restore();
 
-// The transport is the seam: the Voyager client consults the manager's
-// cookies on every request (or honestly reports no-session before a sign-in).
-const transport = new LinkedInHttpClient({ cookies: () => session.getCookies() });
+// The transport is the seam: the HTTP client consults the manager's cookies
+// on every request (or honestly reports no-session before a sign-in); the
+// pacing engine wraps it with budgets, pacing, health holds, and read-only.
+const httpClient = new LinkedInHttpClient({ cookies: () => session.getCookies() });
+const transport = new PacedTransport({ inner: httpClient, session, readOnly });
 
 const server = createAgenticLinkedinServer(transport, {
   readOnly,
