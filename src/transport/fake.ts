@@ -5,6 +5,7 @@ import type {
   Job,
   JobSearchFilters,
   Member,
+  MessageEvent,
   Post,
   Profile,
 } from '../voyager/types.js';
@@ -142,5 +143,21 @@ export class FakeTransport implements LinkedInTransport {
 
   reactToPost(_postId: string, _reaction: ReactionType): Promise<{ ok: true }> {
     return Promise.resolve({ ok: true });
+  }
+
+  sendMessage(_conversationUrn: string, _text: string, originToken?: string): Promise<{ ok: true; originToken: string }> {
+    return Promise.resolve({ ok: true, originToken: originToken ?? '00000000-0000-4000-8000-000000000000' });
+  }
+
+  recallMessage(): Promise<{ ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  reactToMessage(): Promise<{ ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  getConversationHistory(): Promise<MessageEvent[]> {
+    return Promise.resolve([]);
   }
 }

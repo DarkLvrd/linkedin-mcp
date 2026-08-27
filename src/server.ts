@@ -280,5 +280,56 @@ export function createAgenticLinkedinServer(
     (args) => writeToolResult(options.readOnly, () => transport.reactToPost(args.postId, args.reaction)),
   );
 
+  // Messaging (ticket 14): sends carry an originToken so a retry with the
+  // same key can never double-send; writes are gated and paced like all others.
+  server.registerTool(
+    'send_message',
+    {
+      title: 'Send a message',
+      description:
+        'Sends a message in a conversation. Returns the originToken idempotency key — pass it back on a retry so nothing double-sends.',
+      inputSchema: z.object({ conversationUrn: z.string(), text: z.string().min(1), originToken: z.string().optional() }),
+    },
+    (args) =>
+      writeToolResult(options.readOnly, () =>
+        transport.sendMessage(
+          args.conversationUrn,
+          args.text,
+          args.originToken !== undefined ? args.originToken : undefined,
+        ),
+      ),
+  );
+
+  server.registerTool(
+    'recall_message',
+    {
+      title: 'Recall a message',
+      description: 'Recalls (deletes) a message you sent.',
+      inputSchema: z.object({ conversationUrn: z.string(), messageId: z.string() }),
+    },
+    (args) => writeToolResult(options.readOnly, () => transport.recallMessage(args.conversationUrn, args.messageId)),
+  );
+
+  server.registerTool(
+    'react_to_message',
+    {
+      title: 'React to a message',
+      description: 'Leaves an emoji reaction on a message.',
+      inputSchema: z.object({ conversationUrn: z.string(), messageId: z.string(), emoji: z.string().min(1) }),
+    },
+    (args) =>
+      writeToolResult(options.readOnly, () => transport.reactToMessage(args.conversationUrn, args.messageId, args.emoji)),
+  );
+
+  server.registerTool(
+    'get_conversation_history',
+    {
+      title: 'Get conversation history',
+      description: 'Returns the events of a conversation with id, sender, text, and sent time.',
+      inputSchema: z.object({ conversationUrn: z.string(), limit: z.number().int().min(1).max(100).optional() }),
+    },
+    (args) => toolResult(() => transport.getConversationHistory(args.conversationUrn, args.limit ?? 25)),
+  );
+
   return server;
 }

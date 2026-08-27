@@ -1,3 +1,4 @@
+import { randomUUID, randomBytes } from 'node:crypto';
 import { SessionRequiredError, SessionExpiredError, AlreadyPostedError } from '../transport/types.js';
 import type { CreatePostResult, ReactionType } from '../transport/types.js';
 import { VoyagerHealthProbe } from '../session/probe.js';
@@ -23,6 +24,7 @@ import type {
   Job,
   JobSearchFilters,
   Member,
+  MessageEvent,
   Post,
   Profile,
 } from './types.js';
@@ -33,6 +35,7 @@ const ADD_SKILL_FORM = 'com.linkedin.sdui.requests.profile.saveProfileSkillForm'
 const DELETE_SKILL_FORM = 'com.linkedin.sdui.requests.profile.deleteProfileSkillForm';
 const COMPOSE_PATH = '/voyager/api/graphql?action=execute&queryId=voyagerContentcreationDashShares';
 const REACTIONS_PATH = '/voyager/api/voyagerSocialDashReactions';
+const MESSAGES_PATH = '/voyager/api/messaging/messengerMessages';
 
 /** Tolerant nested-path reads, mirroring what the Voyager web app returns. */
 function pickString(obj: unknown, ...paths: string[]): string {
@@ -419,5 +422,69 @@ export class LinkedInHttpClient {
       throw new Error(`reaction failed: HTTP ${result.status} — safe to retry`);
     }
     return { ok: true };
+  }
+
+  // ── Messaging (ticket 14): Voyager, originToken idempotency. ──────────
+
+  async sendMessage(
+    conversationUrn: string,
+    text: string,
+    originToken?: string,
+  ): Promise<{ ok: true; originToken: string }> {
+    const token = originToken ?? randomUUID();
+    const result = await this.postJson(`${MESSAGES_PATH}?action=createMessage`, {
+      message: { body: { text, attributes: [] }, conversationUrn },
+      originToken: token,
+      // 16 raw bytes in latin-1, NOT base64 (research ticket 01).
+      trackingId: randomBytes(16).toString('latin1'),
+      dedupeByClientGeneratedToken: false,
+    });
+    if (!result.sent) {
+      throw new Error('message send failed before sending — safe to retry with the same originToken');
+    }
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`message send failed: HTTP ${result.status} — retry with the same originToken`);
+    }
+    return { ok: true, originToken: token };
+  }
+
+  async recallMessage(conversationUrn: string, messageId: string): Promise<{ ok: true }> {
+    const result = await this.postJson(`${MESSAGES_PATH}?action=recall`, { conversationUrn, messageId });
+    if (!result.sent) {
+      throw new Error('recall failed before sending — safe to retry');
+    }
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`recall failed: HTTP ${result.status}`);
+    }
+    return { ok: true };
+  }
+
+  async reactToMessage(conversationUrn: string, messageId: string, emoji: string): Promise<{ ok: true }> {
+    const result = await this.postJson(`${MESSAGES_PATH}?action=reactWithEmoji`, { conversationUrn, messageId, emoji });
+    if (!result.sent) {
+      throw new Error('message reaction failed before sending — safe to retry');
+    }
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`message reaction failed: HTTP ${result.status}`);
+    }
+    return { ok: true };
+  }
+
+  async getConversationHistory(conversationUrn: string, limit: number): Promise<MessageEvent[]> {
+    const raw = await this.request<{ elements?: unknown[] }>(
+      `/voyager/api/messaging/conversations/${conversationUrn}/events?start=0&count=${limit}`,
+    );
+    return (raw.elements ?? []).map((element) => {
+      const record = element as Record<string, unknown>;
+      const from = (record['from'] ?? record) as Record<string, unknown>;
+      const body = (record['body'] ?? {}) as Record<string, unknown>;
+      const message = (body['message'] ?? body) as Record<string, unknown>;
+      return {
+        id: pickString(record, 'urn'),
+        senderUrn: pickString(from, 'urn'),
+        text: pickString(message, 'text'),
+        sentAt: new Date(pickNumber(record, 'createdAt')).toISOString(),
+      };
+    });
   }
 }

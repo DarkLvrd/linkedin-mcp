@@ -33,6 +33,13 @@ export interface Conversation {
   lastActivityAt: string;
 }
 
+export interface MessageEvent {
+  id: string;
+  senderUrn: string;
+  text: string;
+  sentAt: string;
+}
+
 export interface ConnectionsSummary {
   connections: number;
 }

@@ -14,6 +14,7 @@ import type {
   Job,
   JobSearchFilters,
   Member,
+  MessageEvent,
   Post,
   Profile,
 } from '../voyager/types.js';
@@ -98,4 +99,10 @@ export interface LinkedInTransport {
   deletePost(postId: string): Promise<{ ok: true }>;
   commentOnPost(postId: string, text: string): Promise<{ ok: true }>;
   reactToPost(postId: string, reaction: ReactionType): Promise<{ ok: true }>;
+  // Messaging (ticket 14). Sends carry an originToken idempotency key, so a
+  // retry with the same key can never double-send.
+  sendMessage(conversationUrn: string, text: string, originToken?: string): Promise<{ ok: true; originToken: string }>;
+  recallMessage(conversationUrn: string, messageId: string): Promise<{ ok: true }>;
+  reactToMessage(conversationUrn: string, messageId: string, emoji: string): Promise<{ ok: true }>;
+  getConversationHistory(conversationUrn: string, limit: number): Promise<MessageEvent[]>;
 }

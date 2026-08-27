@@ -189,4 +189,20 @@ export class PacedTransport implements LinkedInTransport {
   reactToPost(postId: string, reaction: ReactionType) {
     return this.wrapWrite('react', () => this.inner.reactToPost(postId, reaction));
   }
+
+  sendMessage(conversationUrn: string, text: string, originToken?: string) {
+    return this.wrapWrite('send_message', () => this.inner.sendMessage(conversationUrn, text, originToken));
+  }
+
+  recallMessage(conversationUrn: string, messageId: string) {
+    return this.wrapWrite('recall_message', () => this.inner.recallMessage(conversationUrn, messageId));
+  }
+
+  reactToMessage(conversationUrn: string, messageId: string, emoji: string) {
+    return this.wrapWrite('react_to_message', () => this.inner.reactToMessage(conversationUrn, messageId, emoji));
+  }
+
+  getConversationHistory(conversationUrn: string, limit: number) {
+    return this.inner.getConversationHistory(conversationUrn, limit);
+  }
 }
