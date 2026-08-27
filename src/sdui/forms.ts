@@ -113,3 +113,42 @@ export function commentForm(postUrn: string, text: string): SduiRequestBody {
   };
   return build('com.linkedin.sdui.comments.createComment', payload, states);
 }
+
+/** mynetwork invitation-action family: accept / ignore / withdraw an invite. */
+export function invitationActionForm(action: string, invitationUrn: string): SduiRequestBody {
+  const states: SduiStateEntry[] = [];
+  const payload = {
+    invitationUrn: ref(states, 'invitationUrn', invitationUrn),
+  };
+  return build(`com.linkedin.sdui.requests.mynetwork.${action}Invitation`, payload, states);
+}
+
+/** mynetwork addaUpdateFollowState: follow or unfollow a person. */
+export function followPersonForm(urn: string, follow: boolean): SduiRequestBody {
+  const states: SduiStateEntry[] = [];
+  const payload = {
+    targetUrn: ref(states, 'targetUrn', urn),
+    follow: ref(states, 'follow', String(follow)),
+  };
+  return build('com.linkedin.sdui.requests.mynetwork.addaUpdateFollowState', payload, states);
+}
+
+/** endorseSkill: endorse a skill on someone's profile. */
+export function endorseSkillForm(profileUrn: string, skillId: string, vanityName: string): SduiRequestBody {
+  const states: SduiStateEntry[] = [];
+  const payload = {
+    profileId: ref(states, 'profileId', profileUrn),
+    skillId: ref(states, 'skillId', skillId),
+    vanityName: ref(states, 'vanityName', vanityName),
+  };
+  return build('com.linkedin.sdui.requests.profile.endorseSkill', payload, states);
+}
+
+/** RemoveConnectionVanityName: remove a connection by vanity name. */
+export function removeConnectionForm(vanityName: string): SduiRequestBody {
+  const states: SduiStateEntry[] = [];
+  const payload = {
+    vanityName: ref(states, 'vanityName', vanityName),
+  };
+  return build('com.linkedin.sdui.mynetwork.RemoveConnectionVanityName', payload, states);
+}

@@ -40,6 +40,12 @@ export interface MessageEvent {
   sentAt: string;
 }
 
+export interface Invitation {
+  id: string;
+  profileUrn: string;
+  sentAt: string;
+}
+
 export interface ConnectionsSummary {
   connections: number;
 }

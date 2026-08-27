@@ -1,26 +1,40 @@
 import { randomUUID, randomBytes } from 'node:crypto';
-import { SessionRequiredError, SessionExpiredError, AlreadyPostedError } from '../transport/types.js';
-import type { CreatePostResult, ReactionType } from '../transport/types.js';
+import {
+  SessionRequiredError,
+  SessionExpiredError,
+  AlreadyPostedError,
+  ConnectionQuotaError,
+} from '../transport/types.js';
+import type {
+  CreatePostResult,
+  GhostEntryRef,
+  ProfileUpdate,
+  ReactionType,
+} from '../transport/types.js';
 import { VoyagerHealthProbe } from '../session/probe.js';
 import { SduiClient } from '../sdui/client.js';
 import {
   aboutForm,
   commentForm,
   deletePostForm,
+  endorseSkillForm,
+  followPersonForm,
   ghostDeleteForm,
+  invitationActionForm,
+  removeConnectionForm,
   skillAddForm,
   skillDeleteForm,
 } from '../sdui/forms.js';
 import { linkedinHeaders } from '../session/cookies.js';
 import { InMemoryDedupeStore, dedupeKey } from '../posting/dedupe.js';
 import type { DedupeStore } from '../posting/dedupe.js';
-import type { GhostEntryRef, ProfileUpdate } from '../transport/types.js';
 import type { HealthProbe, SessionCookies } from '../session/types.js';
 import type { SkillsState } from '../sdui/client.js';
 import type {
   Analytics,
   ConnectionsSummary,
   Conversation,
+  Invitation,
   Job,
   JobSearchFilters,
   Member,
@@ -36,6 +50,9 @@ const DELETE_SKILL_FORM = 'com.linkedin.sdui.requests.profile.deleteProfileSkill
 const COMPOSE_PATH = '/voyager/api/graphql?action=execute&queryId=voyagerContentcreationDashShares';
 const REACTIONS_PATH = '/voyager/api/voyagerSocialDashReactions';
 const MESSAGES_PATH = '/voyager/api/messaging/messengerMessages';
+const CONNECT_PATH = '/voyager/api/voyagerRelationshipsDashMemberRelationships';
+const INVITATIONS_PATH = '/voyager/api/relationships/invitationViews';
+const FOLLOWING_STATES_PATH = '/voyager/api/feed/dash/followingStates';
 
 /** Tolerant nested-path reads, mirroring what the Voyager web app returns. */
 function pickString(obj: unknown, ...paths: string[]): string {
@@ -166,6 +183,7 @@ export class LinkedInHttpClient {
   private async postJson(
     path: string,
     body: unknown,
+    options: { quotaAware?: boolean } = {},
   ): Promise<{ sent: boolean; status: number; json: unknown }> {
     let response: Response;
     try {
@@ -181,18 +199,23 @@ export class LinkedInHttpClient {
     if (response.status === 401) {
       throw new SessionExpiredError('401');
     }
-    if (response.status === 403) {
-      throw new SessionExpiredError('403-CSRF');
-    }
-    const location = response.headers.get('location');
-    if (response.status >= 300 && response.status < 400 && location !== null && location.includes('/voyager/api/')) {
-      throw new SessionExpiredError('redirect-to-self');
-    }
     let json: unknown = null;
     try {
       json = await response.json();
     } catch {
       // Body read failed (timeout) — the request was still sent.
+    }
+    if (response.status === 403) {
+      if (options.quotaAware === true && JSON.stringify(json).toLowerCase().includes('quota')) {
+        // The quota-checked endpoint speaks: a 403 with a quota body is a
+        // LinkedIn invite limit, not a dead session.
+        return { sent: true, status: response.status, json };
+      }
+      throw new SessionExpiredError('403-CSRF');
+    }
+    const location = response.headers.get('location');
+    if (response.status >= 300 && response.status < 400 && location !== null && location.includes('/voyager/api/')) {
+      throw new SessionExpiredError('redirect-to-self');
     }
     return { sent: true, status: response.status, json };
   }
@@ -484,6 +507,95 @@ export class LinkedInHttpClient {
         senderUrn: pickString(from, 'urn'),
         text: pickString(message, 'text'),
         sentAt: new Date(pickNumber(record, 'createdAt')).toISOString(),
+      };
+    });
+  }
+
+  // ── Network (ticket 15). ────────────────────────────────────────────────
+
+  async connectWithNote(profileUrn: string, note: string): Promise<{ ok: true }> {
+    const result = await this.postJson(
+      `${CONNECT_PATH}?action=verifyQuotaAndCreateV2`,
+      { memberIdentity: profileUrn, customMessage: note },
+      { quotaAware: true },
+    );
+    if (!result.sent) {
+      throw new Error('connect request failed before sending — safe to retry');
+    }
+    if (result.status === 429 || result.status === 403) {
+      throw new ConnectionQuotaError();
+    }
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`connect failed: HTTP ${result.status}`);
+    }
+    // 2xx from the quota-checked endpoint IS the verification: LinkedIn
+    // checked the quota and accepted the invite.
+    return { ok: true };
+  }
+
+  async respondInvitation(
+    invitationUrn: string,
+    action: 'accept' | 'ignore' | 'withdraw',
+  ): Promise<{ ok: true }> {
+    await this.submitOrThrow(
+      `com.linkedin.sdui.requests.mynetwork.${action}Invitation`,
+      invitationActionForm(action, invitationUrn),
+    );
+    // Verify by read-back: the invitation must no longer be waiting.
+    const invitations = await this.getInvitations(25);
+    if (invitations.some((i) => i.id === invitationUrn)) {
+      throw new Error('invitation response not verified — it still appears in the invitation list');
+    }
+    return { ok: true };
+  }
+
+  async follow(urn: string, kind: 'person' | 'company', follow: boolean): Promise<{ ok: true }> {
+    if (kind === 'company') {
+      const result = await this.postJson(`${FOLLOWING_STATES_PATH}/${urn}`, {
+        patch: { $set: { following: follow } },
+      });
+      if (!result.sent) {
+        throw new Error('follow request failed before sending — safe to retry');
+      }
+      if (result.status < 200 || result.status >= 300) {
+        throw new Error(`follow failed: HTTP ${result.status}`);
+      }
+      return { ok: true };
+    }
+    await this.submitOrThrow(
+      'com.linkedin.sdui.requests.mynetwork.addaUpdateFollowState',
+      followPersonForm(urn, follow),
+    );
+    return { ok: true };
+  }
+
+  async endorseSkill(profileUrn: string, skillId: string, vanityName: string): Promise<{ ok: true }> {
+    await this.submitOrThrow(
+      'com.linkedin.sdui.requests.profile.endorseSkill',
+      endorseSkillForm(profileUrn, skillId, vanityName),
+    );
+    return { ok: true };
+  }
+
+  async removeConnection(vanityName: string): Promise<{ ok: true }> {
+    await this.submitOrThrow(
+      'com.linkedin.sdui.mynetwork.RemoveConnectionVanityName',
+      removeConnectionForm(vanityName),
+    );
+    return { ok: true };
+  }
+
+  async getInvitations(limit: number): Promise<Invitation[]> {
+    const raw = await this.request<{ elements?: unknown[] }>(
+      `${INVITATIONS_PATH}?start=0&count=${limit}`,
+    );
+    return (raw.elements ?? []).map((element) => {
+      const record = element as Record<string, unknown>;
+      const profile = (record['profile'] ?? record) as Record<string, unknown>;
+      return {
+        id: pickString(record, 'entityUrn'),
+        profileUrn: pickString(profile, 'urn'),
+        sentAt: new Date(pickNumber(record, 'sentAt')).toISOString(),
       };
     });
   }

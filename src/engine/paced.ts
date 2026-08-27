@@ -205,4 +205,28 @@ export class PacedTransport implements LinkedInTransport {
   getConversationHistory(conversationUrn: string, limit: number) {
     return this.inner.getConversationHistory(conversationUrn, limit);
   }
+
+  connectWithNote(profileUrn: string, note: string) {
+    return this.wrapWrite('connect', () => this.inner.connectWithNote(profileUrn, note));
+  }
+
+  respondInvitation(invitationUrn: string, action: 'accept' | 'ignore' | 'withdraw') {
+    return this.wrapWrite('respond_invitation', () => this.inner.respondInvitation(invitationUrn, action));
+  }
+
+  follow(urn: string, kind: 'person' | 'company', follow: boolean) {
+    return this.wrapWrite('follow', () => this.inner.follow(urn, kind, follow));
+  }
+
+  endorseSkill(profileUrn: string, skillId: string, vanityName: string) {
+    return this.wrapWrite('endorse_skill', () => this.inner.endorseSkill(profileUrn, skillId, vanityName));
+  }
+
+  removeConnection(vanityName: string) {
+    return this.wrapWrite('remove_connection', () => this.inner.removeConnection(vanityName));
+  }
+
+  getInvitations(limit: number) {
+    return this.inner.getInvitations(limit);
+  }
 }

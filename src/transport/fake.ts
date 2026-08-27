@@ -2,6 +2,7 @@ import type {
   Analytics,
   ConnectionsSummary,
   Conversation,
+  Invitation,
   Job,
   JobSearchFilters,
   Member,
@@ -158,6 +159,30 @@ export class FakeTransport implements LinkedInTransport {
   }
 
   getConversationHistory(): Promise<MessageEvent[]> {
+    return Promise.resolve([]);
+  }
+
+  connectWithNote(): Promise<{ ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  respondInvitation(): Promise<{ ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  follow(): Promise<{ ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  endorseSkill(): Promise<{ ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  removeConnection(): Promise<{ ok: true }> {
+    return Promise.resolve({ ok: true });
+  }
+
+  getInvitations(): Promise<Invitation[]> {
     return Promise.resolve([]);
   }
 }

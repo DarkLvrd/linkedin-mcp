@@ -11,6 +11,7 @@ import type {
   Analytics,
   ConnectionsSummary,
   Conversation,
+  Invitation,
   Job,
   JobSearchFilters,
   Member,
@@ -53,6 +54,14 @@ export class AlreadyPostedError extends Error {
   constructor() {
     super('this content was already posted — refusing to double-post');
     this.name = 'AlreadyPostedError';
+  }
+}
+
+/** LinkedIn is rate-limiting connection invites (the quota-checked endpoint spoke). */
+export class ConnectionQuotaError extends Error {
+  constructor() {
+    super('connection quota reached — LinkedIn is limiting invites; wait before connecting again');
+    this.name = 'ConnectionQuotaError';
   }
 }
 
@@ -105,4 +114,12 @@ export interface LinkedInTransport {
   recallMessage(conversationUrn: string, messageId: string): Promise<{ ok: true }>;
   reactToMessage(conversationUrn: string, messageId: string, emoji: string): Promise<{ ok: true }>;
   getConversationHistory(conversationUrn: string, limit: number): Promise<MessageEvent[]>;
+  // Network (ticket 15). Connect uses the quota-checked endpoint; responses
+  // to invitations, follows, and removals are verified where a read-back exists.
+  connectWithNote(profileUrn: string, note: string): Promise<{ ok: true }>;
+  respondInvitation(invitationUrn: string, action: 'accept' | 'ignore' | 'withdraw'): Promise<{ ok: true }>;
+  follow(urn: string, kind: 'person' | 'company', follow: boolean): Promise<{ ok: true }>;
+  endorseSkill(profileUrn: string, skillId: string, vanityName: string): Promise<{ ok: true }>;
+  removeConnection(vanityName: string): Promise<{ ok: true }>;
+  getInvitations(limit: number): Promise<Invitation[]>;
 }

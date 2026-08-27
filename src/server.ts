@@ -331,5 +331,75 @@ export function createAgenticLinkedinServer(
     (args) => toolResult(() => transport.getConversationHistory(args.conversationUrn, args.limit ?? 25)),
   );
 
+  // Network (ticket 15): writes gated and paced like all others; the quota-
+  // checked connect endpoint surfaces LinkedIn's invite limits clearly.
+  server.registerTool(
+    'connect',
+    {
+      title: 'Send a connection request',
+      description: 'Sends a connection request with a note via the quota-checked endpoint; LinkedIn invite limits surface as clear errors.',
+      inputSchema: z.object({ profileUrn: z.string(), note: z.string() }),
+    },
+    (args) => writeToolResult(options.readOnly, () => transport.connectWithNote(args.profileUrn, args.note)),
+  );
+
+  server.registerTool(
+    'respond_invitation',
+    {
+      title: 'Respond to an invitation',
+      description: 'Accepts, ignores, or withdraws a connection invitation; verified by read-back.',
+      inputSchema: z.object({
+        invitationUrn: z.string(),
+        action: z.enum(['accept', 'ignore', 'withdraw']),
+      }),
+    },
+    (args) => writeToolResult(options.readOnly, () => transport.respondInvitation(args.invitationUrn, args.action)),
+  );
+
+  server.registerTool(
+    'follow',
+    {
+      title: 'Follow or unfollow',
+      description: 'Follows or unfollows a person (SDUI) or a company (Voyager patch).',
+      inputSchema: z.object({
+        urn: z.string(),
+        kind: z.enum(['person', 'company']),
+        follow: z.boolean(),
+      }),
+    },
+    (args) => writeToolResult(options.readOnly, () => transport.follow(args.urn, args.kind, args.follow)),
+  );
+
+  server.registerTool(
+    'endorse_skill',
+    {
+      title: 'Endorse a skill',
+      description: 'Endorses a skill on someone\'s profile.',
+      inputSchema: z.object({ profileUrn: z.string(), skillId: z.string(), vanityName: z.string() }),
+    },
+    (args) =>
+      writeToolResult(options.readOnly, () => transport.endorseSkill(args.profileUrn, args.skillId, args.vanityName)),
+  );
+
+  server.registerTool(
+    'remove_connection',
+    {
+      title: 'Remove a connection',
+      description: 'Removes a connection by vanity name.',
+      inputSchema: z.object({ vanityName: z.string() }),
+    },
+    (args) => writeToolResult(options.readOnly, () => transport.removeConnection(args.vanityName)),
+  );
+
+  server.registerTool(
+    'get_invitations',
+    {
+      title: 'Get invitations',
+      description: 'Returns pending connection invitations with id, profile, and sent time.',
+      inputSchema: z.object({ limit: z.number().int().min(1).max(100).optional() }),
+    },
+    (args) => toolResult(() => transport.getInvitations(args.limit ?? 25)),
+  );
+
   return server;
 }
