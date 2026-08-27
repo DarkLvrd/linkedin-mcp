@@ -19,3 +19,5 @@ The shared vocabulary of this effort. Terms are resolved during wayfinder charti
 - **write gate** — every write requires approval (dry-run / diff preview) before it executes.
 - **plan-then-execute** — the agent first shows an ordered plan list of all intended writes with previews; nothing executes until the user approves the whole plan.
 - **failure artifact** — screenshot, DOM dump, and diagnostics captured when a lookup or write fails; session values are redacted, never written to disk.
+- **voice profile** — the per-user file that describes how the user writes (tone, vocabulary, habits, no-AI-tell rules); it governs all outbound text. Built for any user, never hard-coded to the author.
+- **AI tells** — phrasing patterns that reveal machine-written text (inflated claims, formulaic structure, overused dashes, chatbot phrasing); the audit pass scans drafts for them.
