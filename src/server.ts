@@ -1,6 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { Planner } from './planning/planner.js';
+import type { ArtifactStore } from './artifacts/types.js';
+import type { Registry } from './registry/types.js';
 import type { SessionManager } from './session/types.js';
 import type { LinkedInTransport, SessionStatus } from './transport/types.js';
 
@@ -9,6 +11,9 @@ export interface AgenticLinkedinServerOptions {
   readOnly: boolean;
   /** When provided, the server registers the one-time sign-in tool. */
   session?: SessionManager;
+  /** When provided, the server registers the self-healing tools (ticket 17). */
+  registry?: Registry;
+  artifacts?: ArtifactStore;
 }
 
 /**
@@ -468,6 +473,47 @@ export function createAgenticLinkedinServer(
       }
     },
   );
+
+  // Self-healing (ticket 17): the agent can inspect redacted failure
+  // artifacts and apply reviewed registry fixes.
+  if (options.registry !== undefined && options.artifacts !== undefined) {
+    server.registerTool(
+      'show_artifact',
+      {
+        title: 'Show a failure artifact',
+        description: 'Returns a redacted failure artifact (failed request, failed strategies, optional DOM dump).',
+        inputSchema: z.object({ id: z.string() }),
+      },
+      async (args) => {
+        const artifact = options.artifacts?.get(args.id);
+        if (artifact === undefined) {
+          return { content: [{ type: 'text', text: `error: unknown artifact ${args.id}` }], isError: true };
+        }
+        return { content: [{ type: 'text', text: JSON.stringify(artifact) }], isError: false };
+      },
+    );
+
+    server.registerTool(
+      'update_registry',
+      {
+        title: 'Update the selector registry',
+        description: 'Applies a reviewed selector entry to the runtime overlay — fixes land without a redeploy.',
+        inputSchema: z.object({
+          selectorId: z.string(),
+          strategies: z.array(
+            z.object({
+              kind: z.enum(['aria-label', 'role', 'data-test', 'text', 'css']),
+              value: z.string(),
+            }),
+          ),
+        }),
+      },
+      async (args: { selectorId: string; strategies: { kind: 'aria-label' | 'role' | 'data-test' | 'text' | 'css'; value: string }[] }) => {
+        options.registry?.applyOverlay({ id: args.selectorId, strategies: args.strategies });
+        return { content: [{ type: 'text', text: JSON.stringify({ ok: true }) }], isError: false };
+      },
+    );
+  }
 
   return server;
 }

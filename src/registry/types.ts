@@ -35,6 +35,8 @@ export interface Suggestion {
   selectorId: string;
   /** The strategy kinds that were tried and failed, in order. */
   failedKinds: StrategyKind[];
+  /** The strategy values tried, parallel to failedKinds. */
+  failedValues: string[];
   at: string;
 }
 
@@ -44,5 +46,7 @@ export interface Registry {
   reload(): void;
   /** Apply an overlay entry programmatically (the `update registry` tool path). */
   applyOverlay(entry: SelectorEntry): void;
+  /** Prepend a healed strategy to the overlay entry (the self-healing path). */
+  heal(selectorId: string, strategy: SelectorStrategy): void;
   suggestions(): Suggestion[];
 }

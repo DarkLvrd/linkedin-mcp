@@ -41,6 +41,8 @@ export interface RegistryOptions {
   overlayPath?: string;
   /** Override the shipped entries (used by tests that want a clean slate). */
   shipped?: SelectorEntry[];
+  /** Called when a lookup fails and a suggestion is recorded (ticket 17). */
+  onSuggestion?: (suggestion: Suggestion) => void;
 }
 
 export function createRegistry(options: RegistryOptions = {}): Registry {
@@ -82,6 +84,7 @@ export function createRegistry(options: RegistryOptions = {}): Registry {
         return null;
       }
       const tried: StrategyKind[] = [];
+      const triedValues: string[] = [];
       for (const kind of STRATEGY_ORDER) {
         const strategy = entry.strategies.find((s) => s.kind === kind);
         if (strategy === undefined) {
@@ -92,8 +95,11 @@ export function createRegistry(options: RegistryOptions = {}): Registry {
           return { kind, value: strategy.value };
         }
         tried.push(kind);
+        triedValues.push(strategy.value);
       }
-      pending.push({ selectorId: entry.id, failedKinds: tried, at: new Date().toISOString() });
+      pending.push({ selectorId: entry.id, failedKinds: tried, failedValues: triedValues, at: new Date().toISOString() });
+      const suggestion = pending[pending.length - 1]!;
+      options.onSuggestion?.(suggestion);
       return null;
     },
 
@@ -103,6 +109,18 @@ export function createRegistry(options: RegistryOptions = {}): Registry {
 
     applyOverlay(entry: SelectorEntry) {
       overlay.set(entry.id, entry);
+    },
+
+    heal(selectorId: string, strategy: SelectorStrategy) {
+      const existing = overlay.get(selectorId) ?? shipped.get(selectorId);
+      if (existing === undefined) {
+        overlay.set(selectorId, { id: selectorId, strategies: [strategy] });
+        return;
+      }
+      overlay.set(selectorId, {
+        ...existing,
+        strategies: [strategy, ...existing.strategies.filter((s) => s.kind !== strategy.kind)],
+      });
     },
 
     suggestions() {

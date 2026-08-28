@@ -27,6 +27,7 @@ import {
 } from '../sdui/forms.js';
 import { linkedinHeaders } from '../session/cookies.js';
 import { InMemoryDedupeStore, dedupeKey } from '../posting/dedupe.js';
+import type { ArtifactInput } from '../artifacts/types.js';
 import type { DedupeStore } from '../posting/dedupe.js';
 import type { HealthProbe, SessionCookies } from '../session/types.js';
 import type { SkillsState } from '../sdui/client.js';
@@ -106,6 +107,8 @@ export interface LinkedInHttpClientOptions {
   probe?: HealthProbe;
   /** Where dedupe keys persist; the bin passes the file store, tests pass memory. */
   dedupeStore?: DedupeStore;
+  /** Receives redacted failure artifacts (the self-healing loop, ticket 17). */
+  onFailure?: (input: ArtifactInput) => void;
 }
 
 /**
@@ -121,6 +124,7 @@ export class LinkedInHttpClient {
   private readonly cookiesProvider: SessionCookies | null | (() => SessionCookies | null);
   private readonly sdui: SduiClient;
   private readonly dedupeStore: DedupeStore;
+  private readonly onFailure: ((input: ArtifactInput) => void) | undefined;
 
   constructor(options: LinkedInHttpClientOptions) {
     this.cookiesProvider = options.cookies;
@@ -131,6 +135,11 @@ export class LinkedInHttpClient {
     // The in-memory fallback is a safety net, never the production store — the
     // bin always passes the persisted file store.
     this.dedupeStore = options.dedupeStore ?? new InMemoryDedupeStore();
+    this.onFailure = options.onFailure;
+  }
+
+  private reportFailure(method: string, path: string, status: number, error: string): void {
+    this.onFailure?.({ kind: 'http', request: { method, path, status, error } });
   }
 
   private currentCookies(): SessionCookies | null {
@@ -150,7 +159,13 @@ export class LinkedInHttpClient {
   }
 
   private async request<T>(path: string): Promise<T> {
-    const response = await this.fetchFn(`${this.baseUrl}${path}`, { headers: this.headers(this.requireSession()), redirect: 'manual' });
+    let response: Response;
+    try {
+      response = await this.fetchFn(`${this.baseUrl}${path}`, { headers: this.headers(this.requireSession()), redirect: 'manual' });
+    } catch (error) {
+      this.reportFailure('GET', path, 0, error instanceof Error ? error.message : String(error));
+      throw error;
+    }
     if (response.status === 401) {
       throw new SessionExpiredError('401');
     }
@@ -162,6 +177,7 @@ export class LinkedInHttpClient {
       throw new SessionExpiredError('redirect-to-self');
     }
     if (!response.ok) {
+      this.reportFailure('GET', path, response.status, `HTTP ${response.status}`);
       throw new Error(`Voyager request failed: HTTP ${response.status} for ${path}`);
     }
     return (await response.json()) as T;
@@ -194,6 +210,7 @@ export class LinkedInHttpClient {
         redirect: 'manual',
       });
     } catch {
+      this.reportFailure('POST', path, 0, 'request failed before sending');
       return { sent: false, status: 0, json: null };
     }
     if (response.status === 401) {
@@ -216,6 +233,9 @@ export class LinkedInHttpClient {
     const location = response.headers.get('location');
     if (response.status >= 300 && response.status < 400 && location !== null && location.includes('/voyager/api/')) {
       throw new SessionExpiredError('redirect-to-self');
+    }
+    if (response.status >= 400) {
+      this.reportFailure('POST', path, response.status, `HTTP ${response.status}`);
     }
     return { sent: true, status: response.status, json };
   }
