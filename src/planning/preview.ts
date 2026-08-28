@@ -1,4 +1,5 @@
 import type { LinkedInTransport } from '../transport/types.js';
+import { auditDraft } from '../voice/audit.js';
 import type { ActionPreview, ProfileDiff, RenderedPreview } from './types.js';
 
 function profileDiff(args: Record<string, unknown>, profile: { headline: string; about: string }): ProfileDiff {
@@ -22,6 +23,8 @@ function renderedPreview(rendered: RenderedPreview, args: Record<string, unknown
     kind: 'rendered',
     summary: `${rendered.type === 'post' ? 'Post' : 'Message'}: ${rendered.text.slice(0, 80)}`,
     rendered,
+    // The AI-tell audit rides along on every outbound text preview (ticket 18).
+    audit: auditDraft(rendered.text),
     raw: args,
   };
 }

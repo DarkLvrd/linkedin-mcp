@@ -1,5 +1,7 @@
 /** The approval layer (ticket 16): plan-then-execute with previews. */
 
+import type { AuditResult } from '../voice/audit.js';
+
 export interface ProfileDiffField {
   field: string;
   /** Absent when the current value is not readable (e.g. top-skills). */
@@ -25,6 +27,8 @@ export interface ActionPreview {
   summary: string;
   diff?: ProfileDiff;
   rendered?: RenderedPreview;
+  /** The AI-tell audit for outbound text previews (ticket 18). */
+  audit?: AuditResult;
   /** The exact args the tool would receive — the raw toggle. */
   raw: Record<string, unknown>;
 }

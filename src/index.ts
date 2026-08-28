@@ -12,6 +12,7 @@ import { PlaywrightBrowserSession } from './session/browser.js';
 import { SessionManagerImpl } from './session/manager.js';
 import { VoyagerHealthProbe } from './session/probe.js';
 import { FileSessionStore } from './session/store.js';
+import { FileVoiceProfileStore } from './voice/store.js';
 import { FileDedupeStore } from './posting/dedupe.js';
 import { LinkedInHttpClient } from './voyager/client.js';
 
@@ -23,6 +24,7 @@ const sessionPath = process.env.AGENTIC_LINKEDIN_SESSION_PATH ?? join(home, 'ses
 const dedupePath = process.env.AGENTIC_LINKEDIN_DEDUPE_PATH ?? join(home, 'posts.json');
 const artifactsPath = process.env.AGENTIC_LINKEDIN_ARTIFACTS_PATH ?? join(home, 'artifacts');
 const overlayPath = process.env.AGENTIC_LINKEDIN_OVERLAY_PATH ?? join(home, 'overlay.json');
+const voicePath = process.env.AGENTIC_LINKEDIN_VOICE_PATH ?? join(home, 'voice');
 
 const session = new SessionManagerImpl({
   browser: new PlaywrightBrowserSession(),
@@ -67,5 +69,6 @@ const server = createAgenticLinkedinServer(transport, {
   session,
   registry,
   artifacts,
+  voice: new FileVoiceProfileStore(voicePath),
 });
 await server.connect(new StdioServerTransport());

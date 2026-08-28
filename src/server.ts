@@ -1,10 +1,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { Planner } from './planning/planner.js';
+import { auditDraft } from './voice/audit.js';
 import type { ArtifactStore } from './artifacts/types.js';
 import type { Registry } from './registry/types.js';
 import type { SessionManager } from './session/types.js';
 import type { LinkedInTransport, SessionStatus } from './transport/types.js';
+import type { VoiceProfileStore } from './voice/types.js';
 
 export interface AgenticLinkedinServerOptions {
   /** When true, every write tool is blocked outright; reads keep working. */
@@ -14,6 +16,8 @@ export interface AgenticLinkedinServerOptions {
   /** When provided, the server registers the self-healing tools (ticket 17). */
   registry?: Registry;
   artifacts?: ArtifactStore;
+  /** When provided, the server registers the voice tools (ticket 18). */
+  voice?: VoiceProfileStore;
 }
 
 /**
@@ -511,6 +515,94 @@ export function createAgenticLinkedinServer(
       async (args: { selectorId: string; strategies: { kind: 'aria-label' | 'role' | 'data-test' | 'text' | 'css'; value: string }[] }) => {
         options.registry?.applyOverlay({ id: args.selectorId, strategies: args.strategies });
         return { content: [{ type: 'text', text: JSON.stringify({ ok: true }) }], isError: false };
+      },
+    );
+  }
+
+  // Voice profiles + audit (ticket 18): local, per-user, never a LinkedIn
+  // write — so these tools stay available in read-only mode.
+  if (options.voice !== undefined) {
+    server.registerTool(
+      'get_voice_profile',
+      {
+        title: 'Get a voice profile',
+        description: 'Returns the voice profile for a user, or an error if none exists yet.',
+        inputSchema: z.object({ userId: z.string() }),
+      },
+      async (args: { userId: string }) => {
+        const profile = options.voice?.get(args.userId);
+        if (profile === undefined) {
+          return { content: [{ type: 'text', text: `error: no voice profile for ${args.userId} — bootstrap it first` }], isError: true };
+        }
+        return { content: [{ type: 'text', text: JSON.stringify(profile) }], isError: false };
+      },
+    );
+
+    server.registerTool(
+      'set_voice_profile',
+      {
+        title: 'Set a voice profile',
+        description: 'Creates or updates the voice profile for a user (tone, vocabulary, emoji, sentence length, stories, notes).',
+        inputSchema: z.object({
+          userId: z.string(),
+          tone: z.string().optional(),
+          vocabularyDo: z.array(z.string()).optional(),
+          vocabularyAvoid: z.array(z.string()).optional(),
+          emoji: z.enum(['none', 'sparing', 'freely']).optional(),
+          sentenceLength: z.enum(['short', 'mixed', 'long']).optional(),
+          personalStories: z.array(z.string()).optional(),
+          notes: z.string().optional(),
+        }),
+      },
+      async (args: {
+        userId: string;
+        tone?: string | undefined;
+        vocabularyDo?: string[] | undefined;
+        vocabularyAvoid?: string[] | undefined;
+        emoji?: 'none' | 'sparing' | 'freely' | undefined;
+        sentenceLength?: 'short' | 'mixed' | 'long' | undefined;
+        personalStories?: string[] | undefined;
+        notes?: string | undefined;
+      }) => {
+        const existing = options.voice?.get(args.userId);
+        const profile = {
+          userId: args.userId,
+          tone: args.tone ?? existing?.tone ?? '',
+          vocabularyDo: args.vocabularyDo ?? existing?.vocabularyDo ?? [],
+          vocabularyAvoid: args.vocabularyAvoid ?? existing?.vocabularyAvoid ?? [],
+          emoji: args.emoji ?? existing?.emoji ?? ('none' as const),
+          sentenceLength: args.sentenceLength ?? existing?.sentenceLength ?? ('mixed' as const),
+          personalStories: args.personalStories ?? existing?.personalStories ?? [],
+          notes: args.notes ?? existing?.notes ?? '',
+          updatedAt: new Date().toISOString(),
+        };
+        options.voice?.set(profile);
+        return { content: [{ type: 'text', text: JSON.stringify({ ok: true, profile }) }], isError: false };
+      },
+    );
+
+    server.registerTool(
+      'bootstrap_voice_profile',
+      {
+        title: 'Bootstrap a voice profile',
+        description: 'Derives a starting voice profile from the user\'s past posts (emoji use and sentence length); tune it afterwards.',
+        inputSchema: z.object({ userId: z.string(), samples: z.array(z.string()).min(1) }),
+      },
+      async (args: { userId: string; samples: string[] }) => {
+        const profile = options.voice?.bootstrap(args.userId, args.samples);
+        return { content: [{ type: 'text', text: JSON.stringify(profile) }], isError: false };
+      },
+    );
+
+    server.registerTool(
+      'audit_draft',
+      {
+        title: 'Audit a draft',
+        description: 'Scans a draft for AI tells (inflated claims, formulaic structure, em-dash overuse, chatbot phrasing, robotic rhythm) and returns suggested fixes — never rewrites.',
+        inputSchema: z.object({ text: z.string() }),
+      },
+      async (args: { text: string }) => {
+        return { content: [{ type: 'text', text: JSON.stringify(auditDraft(args.text)) }], isError: false };
       },
     );
   }
