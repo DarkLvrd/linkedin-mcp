@@ -11,10 +11,11 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"require('node:fs').cpSync('src/registry/selectors.json', 'dist/registry/selectors.json')\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check": "npm run typecheck && npm run build && npm test"
+    "check": "npm run typecheck && npm run build && npm test",
+    "prepublishOnly": "npm run check"
   },
   "engines": {
     "node": ">=20"

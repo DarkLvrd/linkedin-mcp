@@ -1,11 +1,9 @@
 #!/usr/bin/env node
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createAgenticLinkedinServer } from './server.js';
+import { readConfig } from './config.js';
 import { Healer } from './artifacts/healer.js';
 import { FileArtifactStore } from './artifacts/store.js';
-import type { FailureArtifact } from './artifacts/types.js';
 import { PacedTransport } from './engine/paced.js';
 import { createRegistry } from './registry/registry.js';
 import { PlaywrightBrowserSession } from './session/browser.js';
@@ -15,20 +13,13 @@ import { FileSessionStore } from './session/store.js';
 import { FileVoiceProfileStore } from './voice/store.js';
 import { FileDedupeStore } from './posting/dedupe.js';
 import { LinkedInHttpClient } from './voyager/client.js';
+import type { FailureArtifact } from './artifacts/types.js';
 
-const readOnly =
-  process.env.LINKEDIN_READ_ONLY === '1' || process.env.LINKEDIN_READ_ONLY === 'true';
-
-const home = join(homedir(), '.agentic-linkedin');
-const sessionPath = process.env.AGENTIC_LINKEDIN_SESSION_PATH ?? join(home, 'session.json');
-const dedupePath = process.env.AGENTIC_LINKEDIN_DEDUPE_PATH ?? join(home, 'posts.json');
-const artifactsPath = process.env.AGENTIC_LINKEDIN_ARTIFACTS_PATH ?? join(home, 'artifacts');
-const overlayPath = process.env.AGENTIC_LINKEDIN_OVERLAY_PATH ?? join(home, 'overlay.json');
-const voicePath = process.env.AGENTIC_LINKEDIN_VOICE_PATH ?? join(home, 'voice');
+const config = readConfig(process.env);
 
 const session = new SessionManagerImpl({
   browser: new PlaywrightBrowserSession(),
-  store: new FileSessionStore(sessionPath),
+  store: new FileSessionStore(config.sessionPath),
   probe: new VoyagerHealthProbe(),
 });
 session.restore();
@@ -37,10 +28,10 @@ session.restore();
 // provable fixes auto-apply to the registry overlay; the rest wait for review.
 let captureSuggestion: ((s: { selectorId: string; failedKinds: string[]; failedValues: string[] }) => void) | undefined;
 const registry = createRegistry({
-  overlayPath,
+  overlayPath: config.overlayPath,
   onSuggestion: (s) => captureSuggestion?.(s),
 });
-const artifacts = new FileArtifactStore(artifactsPath);
+const artifacts = new FileArtifactStore(config.artifactsPath);
 const healer = new Healer({ store: artifacts, registry });
 captureSuggestion = (s) => {
   healer.capture({
@@ -57,18 +48,18 @@ captureSuggestion = (s) => {
 const httpClient = new LinkedInHttpClient({
   cookies: () => session.getCookies(),
   // The persisted dedupe store: nothing double-posts, even across sessions.
-  dedupeStore: new FileDedupeStore(dedupePath),
+  dedupeStore: new FileDedupeStore(config.dedupePath),
   onFailure: (input) => {
     healer.capture(input);
   },
 });
-const transport = new PacedTransport({ inner: httpClient, session, readOnly });
+const transport = new PacedTransport({ inner: httpClient, session, readOnly: config.readOnly, config: config.pacing });
 
 const server = createAgenticLinkedinServer(transport, {
-  readOnly,
+  readOnly: config.readOnly,
   session,
   registry,
   artifacts,
-  voice: new FileVoiceProfileStore(voicePath),
+  voice: new FileVoiceProfileStore(config.voicePath),
 });
 await server.connect(new StdioServerTransport());
