@@ -8,6 +8,10 @@ An installable, open-source MCP server that gives an AI agent everything a perso
 
 Reaching the end of this map = the way to that destination is clear and no decisions remain; then hand off to `/to-spec`.
 
+## Status: COMPLETE (2026-08-24)
+
+All 19 tickets resolved (6 charting + 13 implementation). The destination is reached: `agentic-linkedin` v0.1.0 is built, tested (161/161), and pushed to `DarkLvrd/linkedin-mcp` (public, MIT). 39 MCP tools; fully offline-tested (faked seam + fixture replay + stdio e2e). Playwright chromium installed on this machine. **Remaining work is HITL and lives in the fog below**: the manual live smoke and `npm publish`. Closeout handoff: `C:\Users\chevo\AppData\Local\Temp\personal-mcp-closeout.md`.
+
 ## Notes
 
 - **Domain**: LinkedIn automation via MCP. Every session should consult: `wayfinder` (primary), `grilling`, `domain-modeling`, `research`, `prototype`, `to-spec`, `to-tickets`, `implement` (drives `tdd` + `code-review`), `setup-matt-pocock-skills`.
