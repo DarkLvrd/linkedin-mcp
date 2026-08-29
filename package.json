@@ -11,7 +11,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc && node -e \"require('node:fs').cpSync('src/registry/selectors.json', 'dist/registry/selectors.json')\"",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc && node -e \"require('node:fs').cpSync('src/registry/selectors.json', 'dist/registry/selectors.json')\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run typecheck && npm run build && npm test",
@@ -20,14 +20,26 @@
   "engines": {
     "node": ">=20"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DarkLvrd/linkedin-mcp.git"
+  },
+  "homepage": "https://github.com/DarkLvrd/linkedin-mcp#readme",
+  "keywords": [
+    "mcp",
+    "linkedin",
+    "model-context-protocol",
+    "automation",
+    "agent"
+  ],
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/node": "^26.4.0",
-    "playwright": "^1.62.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "playwright": "^1.62.1",
     "zod": "^4.4.3"
   }
 }
