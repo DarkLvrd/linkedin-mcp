@@ -27,7 +27,7 @@ things: a free chat app, one click to connect, and a one-time LinkedIn sign-in.
 
 ### Easiest: Cherry Studio (one click)
 
-1. Download **Cherry Studio** (free) from cherry-ai.com and install it like any app.
+1. Download **Cherry Studio** (free) from [cherryai.com/download](https://cherryai.com/download) and install it like any app.
 2. **Click this one-click install link**:
 
    [Install agentic-linkedin in Cherry Studio](cherrystudio://mcp/install?servers=eyJtY3BTZXJ2ZXJzIjp7ImFnZW50aWMtbGlua2VkaW4iOnsiY29tbWFuZCI6Im5weCIsImFyZ3MiOlsiLXkiLCJhZ2VudGljLWxpbmtlZGluIl19fX0%3D)
