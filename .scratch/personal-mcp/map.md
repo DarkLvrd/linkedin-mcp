@@ -10,7 +10,7 @@ Reaching the end of this map = the way to that destination is clear and no decis
 
 ## Status: COMPLETE (2026-08-24)
 
-All 19 tickets resolved (6 charting + 13 implementation). The destination is reached: `agentic-linkedin` v0.1.0 is built, tested (161/161), and pushed to `DarkLvrd/linkedin-mcp` (public, MIT). 39 MCP tools; fully offline-tested (faked seam + fixture replay + stdio e2e). Playwright chromium installed on this machine. **Remaining work is HITL and lives in the fog below**: the manual live smoke and `npm publish`. Closeout handoff: `C:\Users\chevo\AppData\Local\Temp\personal-mcp-closeout.md`.
+All 19 tickets resolved (6 charting + 13 implementation). The destination is reached: `agentic-linkedin` v0.1.0 is built, tested (161/161), pushed to `DarkLvrd/linkedin-mcp` (public, MIT), and **PUBLISHED to npm (2026-09-01)** — `npm view agentic-linkedin` shows v0.1.0 live. 39 MCP tools; fully offline-tested (faked seam + fixture replay + stdio e2e). **Remaining is HITL**: the manual live smoke (needs a real LinkedIn sign-in). Publish automation: granular npm token with read/write on all packages (bypass-2FA not set) saved at `~/.agentic-linkedin/npm-token.txt` and wired into `~/.npmrc` — revoke it in npm settings if you stop publishing from this machine. Closeout handoff: `C:\Users\chevo\AppData\Local\Temp\personal-mcp-closeout.md`.
 
 ## Notes
 
