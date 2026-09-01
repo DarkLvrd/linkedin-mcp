@@ -20,6 +20,43 @@ npx agentic-linkedin
 Requires Node 20+. The package is published to npm; the repository lives at
 [github.com/DarkLvrd/linkedin-mcp](https://github.com/DarkLvrd/linkedin-mcp).
 
+## For normal people (no code, no terminal)
+
+You don't need to know anything about computers to use this. You need three
+things: a free chat app, one click to connect, and a one-time LinkedIn sign-in.
+
+### Easiest: Cherry Studio (one click)
+
+1. Download **Cherry Studio** (free) from cherry-ai.com and install it like any app.
+2. **Click this one-click install link**:
+
+   [Install agentic-linkedin in Cherry Studio](cherrystudio://mcp/install?servers=eyJtY3BTZXJ2ZXJzIjp7ImFnZW50aWMtbGlua2VkaW4iOnsiY29tbWFuZCI6Im5weCIsImFyZ3MiOlsiLXkiLCJhZ2VudGljLWxpbmtlZGluIl19fX0%3D)
+
+   The app asks you to confirm — accept it. The server is now installed.
+3. Open a chat in Cherry Studio, pick your AI model, and ask it to run the
+   `login` tool. A browser window opens — **sign in to LinkedIn once**.
+4. That's it. Talk normally: *"post about what I shipped this week"* — the AI
+   shows you a preview list first, and nothing posts until you approve.
+
+### Also easy: any MCP chat app
+
+Claude Desktop, Cursor, and other MCP apps can add the server with this block
+(ask the app's help or paste into its MCP settings):
+
+```json
+{
+  "mcpServers": {
+    "agentic-linkedin": {
+      "command": "npx",
+      "args": ["-y", "agentic-linkedin"]
+    }
+  }
+}
+```
+
+Both paths need [Node.js](https://nodejs.org) installed once (download, install,
+next-next-finish) — it's what runs the server behind the scenes.
+
 ## Sign in (once)
 
 1. Start the server with your MCP client (Claude Desktop, Cursor, …).
